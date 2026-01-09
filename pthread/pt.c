@@ -3,46 +3,36 @@
 #include <unistd.h>
 
 #define NUM_THREADS 10
-#define LOOP_COUNT 5
 
-// 스레드 함수
-void* thread_function(void* arg) {
-    int thread_id = *(int*)arg;
-    
-    for (int i = 1; i <= LOOP_COUNT; i++) {
-        printf("[Thread %2d] PID: %d, Loop: %d/%d\n", 
-               thread_id, getpid(), i, LOOP_COUNT);
-        sleep(1);
-    }
-    
-    printf("[Thread %2d] Loop End!\n", thread_id);
-    
+pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+int loop_count = 0; // 전체 진행 상황
+
+void* thread_func(void* arg) {
+    int id = *(int*)arg;
+
+    pthread_mutex_lock(&lock);
+    sleep(1);
+    loop_count++; // 현재 스레드 순서로 count 증가
+    printf("[Thread %d] PID: %d, Loop: %d/%d\n", id, getpid(), loop_count, NUM_THREADS);
+    pthread_mutex_unlock(&lock);
+
+
     return NULL;
 }
 
 int main() {
     pthread_t threads[NUM_THREADS];
-    int thread_ids[NUM_THREADS];
-    
-    printf("=== 10개 스레드 생성 시작 ===\n");
-    printf("메인 PID: %d\n\n", getpid());
-    
-    // 10개 스레드 생성
+    int ids[NUM_THREADS];
+
     for (int i = 0; i < NUM_THREADS; i++) {
-        thread_ids[i] = i + 1;  // 1부터 10까지
-        pthread_create(&threads[i], NULL, thread_function, &thread_ids[i]);
-        printf("thread %d 생성 완료\n", i + 1);
+        ids[i] = i + 1;
+        pthread_create(&threads[i], NULL, thread_func, &ids[i]);
     }
-    
-    printf("\n=== 모든 스레드 실행 중 ===\n\n");
-    
-    // 모든 스레드 종료 대기
+
     for (int i = 0; i < NUM_THREADS; i++) {
         pthread_join(threads[i], NULL);
     }
-    
-    printf("\n=== 모든 스레드 종료 완료 ===\n");
-    printf("메인 스레드 종료\n");
-    
+    printf("Loop End!\n");
+
     return 0;
 }

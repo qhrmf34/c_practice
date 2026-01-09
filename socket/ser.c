@@ -18,7 +18,7 @@ void print_time() {
     printf("[%02d:%02d:%02d] ", t->tm_hour, t->tm_min, t->tm_sec);
 }
 
-// 📩 받기 스레드
+// 받기 스레드
 void* receive_thread(void* arg) {
     char buffer[1024];
     
@@ -30,7 +30,7 @@ void* receive_thread(void* arg) {
             pthread_mutex_lock(&print_mutex);
             printf("\n");
             print_time();
-            printf("❌ 클라이언트 연결 종료\n\n");
+            printf("클라이언트 연결 종료\n\n");
             pthread_mutex_unlock(&print_mutex);
             running = 0;
             break;
@@ -51,7 +51,7 @@ void* receive_thread(void* arg) {
     return NULL;
 }
 
-// 📤 보내기 스레드
+// 보내기 스레드
 void* send_thread(void* arg) {
     char message[1024];
     
@@ -80,7 +80,7 @@ void* send_thread(void* arg) {
         
         if (strcmp(message, "quit") == 0) {
             pthread_mutex_lock(&print_mutex);
-            printf("\n🔚 채팅 종료\n");
+            printf("\n채팅 종료\n");
             pthread_mutex_unlock(&print_mutex);
             running = 0;
             break;
@@ -102,7 +102,7 @@ void* send_thread(void* arg) {
 int main() {
     // 소켓 생성
     int server_sock = socket(AF_INET, SOCK_STREAM, 0);
-    printf("✅ 서버 소켓 생성\n");
+    printf("서버 소켓 생성\n");
     
     // 소켓 재사용 옵션 (빠른 재시작용)
     int opt = 1;
@@ -115,11 +115,11 @@ int main() {
     server_addr.sin_addr.s_addr = INADDR_ANY;
     
     bind(server_sock, (struct sockaddr*)&server_addr, sizeof(server_addr));
-    printf("✅ 포트 8080 바인딩\n");
+    printf("포트 8080 바인딩\n");
     
     // listen
     listen(server_sock, 5);
-    printf("✅ 클라이언트 대기 중...\n\n");
+    printf("클라이언트 대기 중...\n\n");
     
     // accept
     struct sockaddr_in client_addr;
@@ -127,9 +127,9 @@ int main() {
     client_sock = accept(server_sock, 
                         (struct sockaddr*)&client_addr, 
                         &client_len);
-    printf("🎉 클라이언트 연결됨!\n");
+    printf("클라이언트 연결됨!\n");
     printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
-    printf("💬 채팅 시작!\n");
+    printf("채팅 시작!\n");
     printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n");
     
     // 스레드 생성
@@ -146,7 +146,7 @@ int main() {
     pthread_mutex_destroy(&print_mutex);
     close(client_sock);
     close(server_sock);
-    printf("👋 서버 종료\n");
+    printf("서버 종료\n");
     
     return 0;
 }
