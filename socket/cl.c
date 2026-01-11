@@ -18,7 +18,7 @@ void print_time() {
     printf("[%02d:%02d:%02d] ", t->tm_hour, t->tm_min, t->tm_sec);
 }
 
-// 📩 받기 스레드
+// 받기 스레드
 void* receive_thread(void* arg) {
     char buffer[1024];
     
@@ -30,7 +30,7 @@ void* receive_thread(void* arg) {
             pthread_mutex_lock(&print_mutex);
             printf("\n");
             print_time();
-            printf("❌ 서버 연결 종료\n\n");
+            printf("서버 연결 종료\n\n");
             pthread_mutex_unlock(&print_mutex);
             running = 0;
             break;
@@ -51,7 +51,7 @@ void* receive_thread(void* arg) {
     return NULL;
 }
 
-// 📤 보내기 스레드
+// 보내기 스레드
 void* send_thread(void* arg) {
     char message[1024];
     
@@ -80,7 +80,7 @@ void* send_thread(void* arg) {
         
         if (strcmp(message, "quit") == 0) {
             pthread_mutex_lock(&print_mutex);
-            printf("\n🔚 채팅 종료\n");
+            printf("\n채팅 종료\n");
             pthread_mutex_unlock(&print_mutex);
             running = 0;
             break;
@@ -102,7 +102,7 @@ void* send_thread(void* arg) {
 int main() {
     // 소켓 생성
     client_sock = socket(AF_INET, SOCK_STREAM, 0);
-    printf("✅ 클라이언트 소켓 생성\n");
+    printf("클라이언트 소켓 생성\n");
     
     // connect
     struct sockaddr_in server_addr;
@@ -112,13 +112,13 @@ int main() {
     
     printf("🚶 서버에 연결 중...\n");
     if (connect(client_sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
-        printf("❌ 연결 실패\n");
+        printf("연결 실패\n");
         return 1;
     }
     
-    printf("🎉 서버에 연결됨!\n");
+    printf("서버에 연결됨!\n");
     printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
-    printf("💬 채팅 시작!\n");
+    printf("채팅 시작!\n");
     printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n");
     
     // 스레드 생성
@@ -134,7 +134,7 @@ int main() {
     // 정리
     pthread_mutex_destroy(&print_mutex);
     close(client_sock);
-    printf("👋 클라이언트 종료\n");
+    printf("클라이언트 종료\n");
     
     return 0;
 }
