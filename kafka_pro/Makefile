@@ -1,12 +1,10 @@
-CC = gcc
-CFLAGS = -Wall -Wextra -g
-LDFLAGS = -lrdkafka
+CC=gcc
+CFLAGS=-Wall -Wextra -g
+LDFLAGS=-lrdkafka
 
-TARGETS = main_kafka producer_kafka consumer_kafka
+all: main_kafka producer_kafka consumer_kafka
 
-all: $(TARGETS)
-
-kafka_wrapper.o: kafka_wrapper.c kafka_wrapper.h
+kafka_wrapper.o: kafka_wrapper.c
 	$(CC) $(CFLAGS) -c kafka_wrapper.c
 
 producer_kafka: producer_kafka.c kafka_wrapper.o
@@ -19,7 +17,4 @@ main_kafka: main_kafka.c
 	$(CC) $(CFLAGS) -o $@ $^
 
 clean:
-	rm -f *.o $(TARGETS)
-
-run: all
-	./main_kafka
+	rm -f *.o main_kafka producer_kafka consumer_kafka
