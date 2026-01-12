@@ -1,140 +1,191 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <time.h>
+#include <signal.h>
+#include <inttypes.h>
 
-// 큐 구조체 정의
-#define MAX 10  // 큐의 최대 크기
+#define MAX 10
+#define RUN_SECONDS 600
 
 typedef struct {
-    long data[MAX];             // ✨ long 배열로 변경 (숫자 저장)
-    int front;                  // 앞쪽 인덱스 (꺼낼 위치)
-    int rear;                   // 뒤쪽 인덱스 (넣을 위치)
-    int count;                  // 현재 큐에 있는 데이터 개수
-    pthread_mutex_t mutex;      // 동기화 잠금
-    pthread_cond_t not_empty;   // "큐 안 비었어!" 조건 변수
-    pthread_cond_t not_full;    // "큐 안 찼어!" 조건 변수
+    long data[MAX];
+    int front;
+    int rear;
+    int count;
+    pthread_mutex_t mutex;
+    pthread_cond_t not_empty;
+    pthread_cond_t not_full;
 } Queue;
 
-// 큐 초기화
+typedef struct {
+    uint64_t produced_count;
+    uint64_t consumed_count;
+    uint64_t error_count;
+    long expected_next;
+    pthread_mutex_t mutex;
+} Statistics;
+
+volatile sig_atomic_t running = 1;
+Statistics stats;
+Queue queue;
+
+void signal_handler(int sig) {
+    running = 0;
+    pthread_mutex_lock(&queue.mutex);
+    pthread_cond_broadcast(&queue.not_empty);
+    pthread_cond_broadcast(&queue.not_full);
+    pthread_mutex_unlock(&queue.mutex);
+}
+
+
 void queue_init(Queue *q) {
-    q->front = 0;
-    q->rear = 0;
-    q->count = 0;
+    q->front = q->rear = q->count = 0;
     pthread_mutex_init(&q->mutex, NULL);
     pthread_cond_init(&q->not_empty, NULL);
     pthread_cond_init(&q->not_full, NULL);
 }
 
-// 큐가 비었는지 확인
-int valid_check(Queue *q) {
-    return q->count == 0;
+void stats_init(Statistics *s) {
+    s->produced_count = 0;
+    s->consumed_count = 0;
+    s->error_count = 0;
+    s->expected_next = 0;
+    pthread_mutex_init(&s->mutex, NULL);
 }
 
-// 큐가 꽉 찼는지 확인
-int max_Check(Queue *q) {
-    return q->count == MAX;
+int valid_check(Queue *q) { return q->count == 0; }
+int max_Check(Queue *q) { return q->count == MAX; }
+
+int extract_digit(long num) {
+    if (num == 0) return 0;
+    return (int)(num / 111111111L);
 }
 
-// enqueue: 큐에 long 데이터 넣기
-void enqueue(Queue *q, long item) {  // ✨ long 타입으로 변경
+int validate_sequence(long num, long expected) {
+    return extract_digit(num) == expected;
+}
+
+void enqueue(Queue *q, long item) {
     pthread_mutex_lock(&q->mutex);
-    
-    while(max_Check(q)) {
-        printf("생산자: 큐 꽉 참! 대기 중... (count=%d)\n", q->count);
-        pthread_cond_wait(&q->not_full, &q->mutex);
+    while (max_Check(q) && running) {
+        struct timespec ts;
+        clock_gettime(CLOCK_REALTIME, &ts);
+        ts.tv_nsec += 10000000;  // 1ms
+        if (ts.tv_nsec >= 1000000000) { ts.tv_sec++; ts.tv_nsec -= 1000000000; }
+        pthread_cond_timedwait(&q->not_full, &q->mutex, &ts);
     }
-    
-    // ✨ long 값을 직접 저장
+    if (!running) { pthread_mutex_unlock(&q->mutex); return; }
     q->data[q->rear] = item;
     printf("생산자: [%d] 위치에 %ld 삽입\n", q->rear, item);
-    
     q->rear = (q->rear + 1) % MAX;
     q->count++;
     printf("생산자: 현재 큐에 %d개 데이터\n\n", q->count);
-    
+
     pthread_cond_signal(&q->not_empty);
     pthread_mutex_unlock(&q->mutex);
 }
 
-// dequeue: 큐에서 long 데이터 꺼내기
-long dequeue(Queue *q) {  // ✨ long 반환으로 변경
+int dequeue(Queue *q, long *item) {
     pthread_mutex_lock(&q->mutex);
-    
-    while(valid_check(q)) {
+    while (valid_check(q) && running) {
         printf("소비자: 큐 비었음! 대기 중... (count=%d)\n", q->count);
-        pthread_cond_wait(&q->not_empty, &q->mutex);
+        struct timespec ts;
+        clock_gettime(CLOCK_REALTIME, &ts);
+        ts.tv_nsec += 1000000;  // 1ms
+        if (ts.tv_nsec >= 1000000000) { ts.tv_sec++; ts.tv_nsec -= 1000000000; }
+        pthread_cond_timedwait(&q->not_empty, &q->mutex, &ts);
     }
-    
-    // ✨ long 값을 직접 꺼내기
-    long item = q->data[q->front];
-    printf("소비자: [%d] 위치에서 %ld 추출\n", q->front, item);
-    
+    if (!running && valid_check(q)) { pthread_mutex_unlock(&q->mutex); return 0; }
+    *item = q->data[q->front];
+    printf("소비자: [%d] 위치에서 %ld 추출\n", q->front, *item);
     q->front = (q->front + 1) % MAX;
     q->count--;
     printf("소비자: 현재 큐에 %d개 데이터\n\n", q->count);
-    
     pthread_cond_signal(&q->not_full);
     pthread_mutex_unlock(&q->mutex);
-    
-    return item;  // ✨ long 값 반환
+    return 1;
 }
 
-// 생산자 스레드
-void* producer(void *arg) {
-    Queue *q = (Queue*)arg;
-    int i = 0;
-    
-    while(1) {
-        // ✨ long 변수에 반복 숫자 생성
-        long num = (i % 10) * 111111111L;  
-        // 0→0, 1→111111111, 2→222222222, ..., 9→999999999, 10→0, ...
-        
-        enqueue(q, num);  // ✨ long 값 삽입
-        
+void* producer(void* arg) {
+    long i = 0;
+    while (running) {
+        long num = (i % 10) * 111111111L;
+        enqueue(&queue, num);
+        pthread_mutex_lock(&stats.mutex);
+        stats.produced_count++;
+        pthread_mutex_unlock(&stats.mutex);
         i++;
-        usleep(1000000);  // 1초 대기
     }
-    
+    printf("\n[생산자] 종료 - 총 %" PRIu64 "개 생산\n", stats.produced_count);
     return NULL;
 }
 
-// 소비자 스레드
-void* consumer(void *arg) {
-    Queue *q = (Queue*)arg;
-    
-    while(1) {
-        // ✨ long 값으로 받기
-        long num = dequeue(q);
-        
-        // 처리 (9자리 문자열로 출력)
-        printf("소비자: %09ld 처리 완료!\n\n", num);
-        
-        usleep(3000000);  // 3초 대기
+void* consumer(void* arg) {
+    long num;
+    while (running) {
+        if (dequeue(&queue, &num)) {
+            pthread_mutex_lock(&stats.mutex);
+            if (!validate_sequence(num, stats.expected_next)) {
+                int digit = extract_digit(num);
+                stats.error_count++;
+                printf("\n[오류 #% " PRIu64 "] 기대:%ld 실제:%d\n", stats.error_count, stats.expected_next, digit);
+                stats.expected_next = (digit + 1) % 10;
+            } else {
+                stats.expected_next = (stats.expected_next + 1) % 10;
+            }
+            stats.consumed_count++;
+            pthread_mutex_unlock(&stats.mutex);
+        }
     }
-    
+    printf("[소비자] 종료 - 총 %" PRIu64 "개 소비, 오류 %" PRIu64 "개\n", stats.consumed_count, stats.error_count);
     return NULL;
 }
 
-// 메인 함수
+
+
+// 타이머
+void* timer_thread(void* arg) {
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    ts.tv_sec += RUN_SECONDS;  // 정확히 RUN_SECONDS 후 종료
+    clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, &ts, NULL);
+
+    running = 0;
+    pthread_mutex_lock(&queue.mutex);
+    pthread_cond_broadcast(&queue.not_empty);
+    pthread_cond_broadcast(&queue.not_full);
+    pthread_mutex_unlock(&queue.mutex);
+
+    printf("\n%ds 경과! 프로그램 종료 중...\n", RUN_SECONDS);
+    return NULL;
+}
+
 int main() {
-    Queue queue;
-    pthread_t producer_tid, consumer_tid;
-    
+    pthread_t prod, cons, stats_tid, timer_tid;
+    signal(SIGINT, signal_handler);
+
     queue_init(&queue);
-    
-    printf("═══════════════════════════════════\n");
-    printf("   큐 기반 생산자-소비자 시작!\n");
-    printf("   큐 크기: %d\n", MAX);
-    printf("   데이터 타입: long (9자리 반복)\n");
-    printf("═══════════════════════════════════\n\n");
-    
-    pthread_create(&producer_tid, NULL, producer, &queue);
-    pthread_create(&consumer_tid, NULL, consumer, &queue);
-    
-    pthread_join(producer_tid, NULL);
-    pthread_join(consumer_tid, NULL);
-    
+    stats_init(&stats);
+
+    time_t start_time = time(NULL);
+
+    pthread_create(&timer_tid, NULL, timer_thread, NULL);
+    pthread_create(&prod, NULL, producer, NULL);
+    pthread_create(&cons, NULL, consumer, NULL);
+
+    pthread_join(timer_tid, NULL);
+    pthread_join(prod, NULL);
+    pthread_join(cons, NULL);
+
+    uint64_t total_time = time(NULL) - start_time;
+
+    printf("\n최종 통계\n");
+    printf("총 실행 시간: %" PRIu64 "초\n", total_time);
+    printf("총 생산 개수: %" PRIu64 "개\n", stats.produced_count);
+    printf("총 소비 개수: %" PRIu64 "개\n", stats.consumed_count);
+    printf("순서 오류: %" PRIu64 "개\n", stats.error_count);
+
     return 0;
 }
