@@ -68,7 +68,7 @@ int validate_sequence(long num, long expected) {
 }
 
 void enqueue(Queue *q, long item) {
-    pthread_mutex_lock(&q->mutex);
+    pthread_mutex_lock(&q->mutex); 
     while (max_Check(q) && running) {
         struct timespec ts;
         clock_gettime(CLOCK_REALTIME, &ts);
@@ -106,7 +106,7 @@ int dequeue(Queue *q, long *item) {
     pthread_cond_signal(&q->not_full);
     pthread_mutex_unlock(&q->mutex);
     return 1;
-}
+} 
 
 void* producer(void* arg) {
     long i = 0;
