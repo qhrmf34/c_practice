@@ -2,7 +2,7 @@
 #define CLIENT_FUNCTION_H
 
 #define BUF_SIZE 1024
-#define MAX_THREADS 15  // 생성할 연결 스레드 개수
+#define MAX_THREADS 50  // 생성할 연결 스레드 개수
 
 typedef struct {
     char *ip;

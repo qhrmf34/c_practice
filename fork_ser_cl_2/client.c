@@ -28,7 +28,7 @@ int main(int argc, char *argv[]) {
             error_handling("pthread_create() error");
         }
         
-        sleep(1);  // 스레드 생성 간격
+        // sleep(1);  // 스레드 생성 간격
     }    
     
     // 모든 스레드 종료 대기
