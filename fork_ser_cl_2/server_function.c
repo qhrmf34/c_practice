@@ -87,8 +87,6 @@ int create_server_socket(void) {
     printf("[M.P] Server ready on port %d\n", PORT);
     return serv_sock;
 }
-
-// 채팅방 실행
 void run_chat_room(int serv_sock) {
     int clnt_sock;
     struct sockaddr_in clnt_addr;
@@ -98,27 +96,29 @@ void run_chat_room(int serv_sock) {
     printf("[C.P] Max capacity: %d members\n\n", MAX_SESSIONS);
 
     while (1) {
-        addr_size = sizeof(clnt_addr);
-        clnt_sock = accept(serv_sock, (struct sockaddr*)&clnt_addr, &addr_size);
-        if (clnt_sock == -1)
-            continue;
-
         pthread_mutex_lock(&mutex);
-
-        // 세션 제한
+        
         if (session_count >= MAX_SESSIONS) {
             pthread_mutex_unlock(&mutex);
-
-            char *msg = "Chat room is full (32/32). T.\n";
-            write(clnt_sock, msg, strlen(msg));
-            close(clnt_sock);
-            continue;
+            
+            sleep(1);
+            continue;  // accept 안 하고 다시 체크
         }
-
-        // 세션 증가 및 ID 할당
+        
         int sid = session_count + 1;
         session_count++;
         pthread_mutex_unlock(&mutex);
+        
+        addr_size = sizeof(clnt_addr);
+        clnt_sock = accept(serv_sock, (struct sockaddr*)&clnt_addr, &addr_size);
+        
+        if (clnt_sock == -1) {
+            // accept 실패하면 카운트 되돌리기
+            pthread_mutex_lock(&mutex);
+            session_count--;
+            pthread_mutex_unlock(&mutex);
+            continue;
+        }
 
         printf("[C.P] New member joined: %s:%d (Session #%d)\n",
                inet_ntoa(clnt_addr.sin_addr), ntohs(clnt_addr.sin_port), sid);
@@ -133,7 +133,14 @@ void run_chat_room(int serv_sock) {
         pthread_t thread;
         if (pthread_create(&thread, NULL, handle_client_thread, (void*)member) != 0) {
             perror("pthread_create() error");
+            
+            // 스레드 생성 실패하면 정리
+            close(clnt_sock);
             free(member);
+            
+            pthread_mutex_lock(&mutex);
+            session_count--;
+            pthread_mutex_unlock(&mutex);
             continue;
         }
         pthread_detach(thread);

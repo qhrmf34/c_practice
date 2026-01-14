@@ -11,9 +11,7 @@ int main() {
     char buffer[100];
     int i = 0;
     
-    printf("═══════════════════════════════════\n");
     printf("  생산자 프로세스 (PID: %d)\n", getpid());
-    printf("═══════════════════════════════════\n\n");
     
     // 큐에 연결
     q = queue_attach();

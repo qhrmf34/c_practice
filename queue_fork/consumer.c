@@ -10,10 +10,8 @@ int main() {
     Queue *q;
     char buffer[100];
     
-    printf("═══════════════════════════════════\n");
     printf("  소비자 프로세스 (PID: %d)\n", getpid());
-    printf("═══════════════════════════════════\n\n");
-    
+        
     // 큐에 연결
     q = queue_attach();
     if (q == NULL) {

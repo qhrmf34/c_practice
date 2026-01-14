@@ -40,20 +40,20 @@ void* receive_thread(void* arg) {  // 스레드 함수 (void* 매개변수 필�
                            0);                 // 옵션 (0=기본)
         
         if (recv_len <= 0) {                   // 0 이하면 연결 끊김
-            pthread_mutex_lock(&print_mutex);  // 🔒 출력 잠금
+            pthread_mutex_lock(&print_mutex);  //  출력 잠금
             printf("\n");                      // 줄바꿈
             print_time();                      // 시간 출력
             printf("클라이언트 연결 종료\n\n"); // 메시지 출력
-            pthread_mutex_unlock(&print_mutex);// 🔓 출력 해제
+            pthread_mutex_unlock(&print_mutex);//  출력 해제
             running = 0;                       // 프로그램 종료 신호
             break;                             // while 반복문 탈출
         }
         
-        pthread_mutex_lock(&print_mutex);      // 🔒 출력 잠금
+        pthread_mutex_lock(&print_mutex);      //  출력 잠금
         printf("\n");                          // 줄바꿈
         print_time();                          // 시간 출력
         printf("클라이언트: %s\n\n", buffer);  // 받은 메시지 출력
-        pthread_mutex_unlock(&print_mutex);    // 🔓 출력 해제
+        pthread_mutex_unlock(&print_mutex);    //  출력 해제
         
         if (strcmp(buffer, "quit") == 0) {     // 메시지가 "quit"이면
             running = 0;                       // 프로그램 종료 신호
@@ -71,22 +71,22 @@ void* send_thread(void* arg) {       // 스레드 함수
     
     // 첫 입력 프롬프트 출력// ═══════════════════════════════════════════════════════════
 
-    pthread_mutex_lock(&print_mutex);      // 🔒 출력 잠금
+    pthread_mutex_lock(&print_mutex);      //  출력 잠금
     print_time();                          // 시간 출력
     printf("나: ");                        // "나: " 출력
     fflush(stdout);                        // 버퍼 비우기 (즉시 출력)
-    pthread_mutex_unlock(&print_mutex);    // 🔓 출력 해제
+    pthread_mutex_unlock(&print_mutex);    //  출력 해제
     
     while(running) {                                  // running이 1인 동안 반복
         fgets(message, sizeof(message), stdin);       // 키보드 입력 받기 (엔터까지)
         message[strcspn(message, "\n")] = 0;          // 엔터(\n)를 제거 (문자열 끝으로)
         
         if (strlen(message) == 0) {                   // 빈 입력이면
-            pthread_mutex_lock(&print_mutex);         // 🔒 출력 잠금
+            pthread_mutex_lock(&print_mutex);         //  출력 잠금
             print_time();                             // 시간 출력
             printf("나: ");                           // "나: " 출력
             fflush(stdout);                           // 즉시 출력
-            pthread_mutex_unlock(&print_mutex);       // 🔓 출력 해제
+            pthread_mutex_unlock(&print_mutex);       //  출력 해제
             continue;                                 // 다음 반복으로
         }
         
@@ -96,20 +96,20 @@ void* send_thread(void* arg) {       // 스레드 함수
              0);                         // 옵션 (0=기본)
         
         if (strcmp(message, "quit") == 0) {           // "quit" 입력하면
-            pthread_mutex_lock(&print_mutex);         // 🔒 출력 잠금
+            pthread_mutex_lock(&print_mutex);         //  출력 잠금
             printf("\n채팅 종료\n");                  // 종료 메시지
-            pthread_mutex_unlock(&print_mutex);       // 🔓 출력 해제
+            pthread_mutex_unlock(&print_mutex);       //  출력 해제
             running = 0;                              // 프로그램 종료 신호
             break;                                    // while 반복문 탈출
         }
         
         // 다음 입력 프롬프트 출력
         if (running) {                          // 아직 실행 중이면
-            pthread_mutex_lock(&print_mutex);   // 🔒 출력 잠금
+            pthread_mutex_lock(&print_mutex);   //  출력 잠금
             print_time();                       // 시간 출력
             printf("나: ");                     // "나: " 출력
             fflush(stdout);                     // 즉시 출력
-            pthread_mutex_unlock(&print_mutex); // 🔓 출력 해제
+            pthread_mutex_unlock(&print_mutex); //  출력 해제
         }
     }
     

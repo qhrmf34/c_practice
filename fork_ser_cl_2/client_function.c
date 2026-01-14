@@ -58,7 +58,6 @@ void *client_thread(void *arg) {
         printf("[Thread %d] Received: %s", info->thread_id, recv_buf);
         
         count++;
-        sleep(3);  
     }
     
     printf("[Thread %d] Closing connection (fd: %d)\n", info->thread_id, sock);
