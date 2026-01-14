@@ -19,7 +19,7 @@ void *client_thread(void *arg) {
     // 소켓 생성
     sock = socket(PF_INET, SOCK_STREAM, 0);
     if (sock == -1) {
-        printf("[Thread %d] socket() error\n", info->thread_id);
+        printf("[클라이언트 %d] socket() error\n", info->thread_id);
         return NULL;
     }
     
@@ -31,12 +31,12 @@ void *client_thread(void *arg) {
     
     // 서버 연결
     if (connect(sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) == -1) {
-        printf("[Thread %d] connect() error\n", info->thread_id);
+        printf("[클라이언트 %d] connect() error\n", info->thread_id);
         close(sock);
         return NULL;
     }
     
-    printf("[Thread %d] Connected to server (fd: %d)\n", info->thread_id, sock);
+    printf("[클라이언트 %d] Connected to server (fd: %d)\n", info->thread_id, sock);
     
     // 메시지 송수신 - 10번 반복
     while (count < 10) {
@@ -51,7 +51,7 @@ void *client_thread(void *arg) {
         // 수신
         str_len = read(sock, recv_buf, BUF_SIZE - 1);
         if (str_len <= 0) {
-            printf("[Thread %d] Server disconnected\n", info->thread_id);
+            printf("[클라이언트 %d] Server disconnected\n", info->thread_id);
             break;
         }
         
@@ -61,7 +61,7 @@ void *client_thread(void *arg) {
         count++;
     }
     
-    printf("[Thread %d] Closing connection (fd: %d)\n", info->thread_id, sock);
+    printf("[클라이언트 %d] Closing connection (fd: %d)\n", info->thread_id, sock);
     close(sock);
     return NULL;
 }
