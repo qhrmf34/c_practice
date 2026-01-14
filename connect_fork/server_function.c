@@ -21,7 +21,7 @@ static void sigchld_handler(int signo) {
 // 서버 종료 signal handler
 static void shutdown_handler(int signo) {
     server_running = 0;
-    printf("\n[Server] Shutdown signal received...\n");
+    printf("\n[서버] Shutdown...\n");
 }
 
 // 클라이언트 처리 함수 (자식 프로세스에서 실행)
@@ -30,7 +30,7 @@ void handle_client(int clnt_sock, int session_id, struct sockaddr_in clnt_addr) 
     int str_len;
     int count = 0;
 
-    printf("  [Child Process #%d (PID: %d)] Client connected (fd: %d, %s:%d)\n",
+    printf(" [자식 프로세스 #%d (PID: %d)] 클라이언트 연결 (fd: %d, %s:%d)\n",
            session_id, getpid(), clnt_sock, 
            inet_ntoa(clnt_addr.sin_addr), ntohs(clnt_addr.sin_port));
 
@@ -40,21 +40,21 @@ void handle_client(int clnt_sock, int session_id, struct sockaddr_in clnt_addr) 
         
         if (str_len <= 0) {
             if (str_len == 0)
-                printf("  [Child Process #%d] Client closed connection\n", session_id);
+                printf(" [자식 프로세스 #%d] 클라이언트 연결 종료\n", session_id);
             else
                 perror("read() error");
             break;
         }
 
         buf[str_len] = 0;
-        printf("  [Child Process #%d] Received: %s", session_id, buf);
+        printf("  [자식 프로세스 #%d] Received: %s", session_id, buf);
 
         // Echo back
         write(clnt_sock, buf, str_len);
         count++;
     }
 
-    printf("  [Child Process #%d (PID: %d)] Completed %d I/O operations. Closing connection.\n", 
+    printf("  [자식 프로세스 #%d (PID: %d)] %d I/O operations. Closing connection.\n", 
            session_id, getpid(), count);
     
     close(clnt_sock);
@@ -93,8 +93,7 @@ int create_server_socket(void) {
         return -1;
     }
 
-    printf("[Server] Ready on port %d\n", PORT);
-    printf("[Server] No session limit - fork() for each connection\n\n");
+    printf("[서버] %d 포트 준비\n", PORT);
     
     return serv_sock;
 }
@@ -122,19 +121,17 @@ void run_server(void) {
     sigaction(SIGINT, &shutdown_act, 0);   // Ctrl+C
     sigaction(SIGTERM, &shutdown_act, 0);  // kill 명령
 
-    printf("=== Multi-Process Echo Server ===\n");
+    printf("=== Multi-Process Server ===\n");
     printf("Port: %d\n", PORT);
-    printf("Strategy: fork() per connection\n\n");
 
     // 서버 소켓 생성
     serv_sock = create_server_socket();
     if (serv_sock == -1) {
-        fprintf(stderr, "Failed to create server socket\n");
+        perror("서버 소켓 생성 실패");
         exit(1);
     }
 
-    printf("[Server] Waiting for connections...\n");
-    printf("[Server] Press Ctrl+C to shutdown gracefully\n\n");
+    printf("서버에서 연결을 대기중\n");
 
     // 메인 루프: accept() 후 fork()
     while (server_running) {
@@ -151,7 +148,7 @@ void run_server(void) {
         }
 
         session_id++;
-        printf("[Server] New connection accepted: %s:%d (Session #%d)\n",
+        printf("[서버] 새 연결 : %s:%d (Session #%d)\n",
                inet_ntoa(clnt_addr.sin_addr), ntohs(clnt_addr.sin_port), session_id);
 
         // fork: 자식 프로세스 생성
@@ -175,7 +172,7 @@ void run_server(void) {
         } else {
             // 부모 프로세스
             close(clnt_sock);  // 부모는 클라이언트 소켓 필요 없음
-            printf("[Server] Forked child process (PID: %d) for Session #%d\n\n", pid, session_id);
+            printf("[서버] 자식 프로세스 (PID: %d) Session #%d\n\n", pid, session_id);
         }
     }
 

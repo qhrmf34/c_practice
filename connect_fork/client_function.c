@@ -78,12 +78,12 @@ void client_run(int argc, char *argv[]) {
     int i;
     
     if (argc != 3) {
-        printf("Usage: %s <IP> <port>\n", argv[0]);
+        printf("%s <IP> <port>\n", argv[0]);
         exit(1);
     }
 
     printf("=== Multi-Thread Client ===\n");
-    printf("Server: %s:%s\n", argv[1], argv[2]);
+    printf("서버: %s:%s\n", argv[1], argv[2]);
     printf("Creating %d connection threads...\n\n", MAX_THREADS);
     
     // 클라이언트 스레드 생성
