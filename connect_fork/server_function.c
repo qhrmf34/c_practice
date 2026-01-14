@@ -22,6 +22,7 @@ static void sigchld_handler(int signo) {
 static void shutdown_handler(int signo) {
     server_running = 0;
     printf("\n[서버] Shutdown...\n");
+
 }
 
 // 클라이언트 처리 함수 (자식 프로세스에서 실행)
@@ -35,7 +36,7 @@ void handle_client(int clnt_sock, int session_id, struct sockaddr_in clnt_addr) 
            inet_ntoa(clnt_addr.sin_addr), ntohs(clnt_addr.sin_port));
 
     // 클라이언트가 연결을 끊을 때까지 계속 처리
-    while (1) {
+    while (1) { 
         str_len = read(clnt_sock, buf, BUF_SIZE - 1);
         
         if (str_len <= 0) {
@@ -90,7 +91,7 @@ int create_server_socket(void) {
     if (listen(serv_sock, 128) == -1) {
         perror("listen() error");
         close(serv_sock);
-        return -1;
+        return -1; 
     }
 
     printf("[서버] %d 포트 준비\n", PORT);
@@ -113,7 +114,7 @@ void run_server(void) {
     act.sa_flags = SA_RESTART;  // accept()가 시그널에 의해 중단되지 않도록
     sigaction(SIGCHLD, &act, 0);
 
-    // SIGINT, SIGTERM 시그널 처리 (Graceful Shutdown)
+    // SIGINT, SIGTERM 시그널 처리
     struct sigaction shutdown_act;
     shutdown_act.sa_handler = shutdown_handler;
     sigemptyset(&shutdown_act.sa_mask);
