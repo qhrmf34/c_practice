@@ -24,4 +24,9 @@ create_server_socket(void);
 void
 run_server(void);
 
+// 시스템 리소스 출력 
+void
+print_resource_limits(void);
+
+
 #endif

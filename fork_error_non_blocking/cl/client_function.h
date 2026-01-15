@@ -8,4 +8,8 @@
 void
 client_run(const char *ip, int port, int client_id);
 
+//클라이언트 서버 연결 
+int
+client_connect(int argc, char *argv[]);
+
 #endif

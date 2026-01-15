@@ -4,7 +4,7 @@
 #include <unistd.h>
 
 int
-main(int argc, char *argv[])
+client_connect(int argc, char *argv[])
 {
     char *ip;
     int port;
