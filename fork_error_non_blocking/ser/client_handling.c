@@ -109,25 +109,5 @@ handle_client(int clnt_sock, int session_id, struct sockaddr_in clnt_addr, int p
 cleanup:
     printf("  [자식 #%d (PID:%d)] %d I/O 완료, 종료\n", 
            session_id, getpid(), count);
-    
-    // 부모에게 종료 알림
-    snprintf(msg_to_parent, BUF_SIZE, "CHILD_END:Session#%d,IO_Count:%d", session_id, count);
-    write_result = write(parent_pipe, msg_to_parent, strlen(msg_to_parent));
-    if (write_result == -1)
-    {
-        fprintf(stderr, "  [자식 #%d] 부모에게 종료 메시지 전송 실패: %s\n", 
-                session_id, strerror(errno));
-    }
-    
-    if (close(clnt_sock) == -1)
-    {
-        fprintf(stderr, "  [자식 #%d] close(clnt_sock) error: %s\n", 
-                session_id, strerror(errno));
-    }
-    
-    if (close(parent_pipe) == -1)
-    {
-        fprintf(stderr, "  [자식 #%d] close(parent_pipe) error: %s\n", 
-                session_id, strerror(errno));
-    }
+
 }

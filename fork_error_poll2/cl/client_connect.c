@@ -37,7 +37,7 @@ client_connect(int argc, char *argv[])
         client_id = getpid() % 1000;  // PID의 마지막 3자리
     }
     
-    printf("=== 클라이언트 #%d 시작 (무한 반복 모드) ===\n", client_id);
+    printf("=== 클라이언트 #%d 시작 (무한 반복 모드, blocking) ===\n", client_id);
     printf("서버: %s:%d\n", ip, port);
     printf("Connect → 10번 I/O → Close → 반복\n");
     printf("Ctrl+C로 종료하세요.\n\n");
