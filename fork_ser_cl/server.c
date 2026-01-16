@@ -13,18 +13,24 @@
 #define PORT 9190
 #define MAX_SESSIONS 32
 
-typedef struct {
+typedef struct 
+{
     int sock;
     struct sockaddr_in addr;
 } ClientInfo;
 
-void error_handling(char *message);
-void read_childproc(int sig);
-void *handle_client_thread(void *arg);
+void 
+error_handling(char *message);
+void 
+read_childproc(int sig);
+void 
+*handle_client_thread(void *arg);
 
 int session_count = 0;
 
-int main(int argc, char *argv[]) {
+int 
+main(int argc, char *argv[]) 
+{
     int serv_sock, clnt_sock;
     struct sockaddr_in serv_addr, clnt_addr;
     pid_t pid;
@@ -66,16 +72,19 @@ int main(int argc, char *argv[]) {
     printf("\n[Mother Process] Waiting for clients...\n\n");
     
     // M.P - accept 루프
-    while(1) {
+    while(1) 
+    {
         addr_size = sizeof(clnt_addr);
         clnt_sock = accept(serv_sock, (struct sockaddr*)&clnt_addr, &addr_size);
         
-        if (clnt_sock == -1) {
+        if (clnt_sock == -1) 
+        {
             continue;
         }
         
         // 세션 수 체크
-        if (session_count >= MAX_SESSIONS) {
+        if (session_count >= MAX_SESSIONS) 
+        {
             printf("[Mother Process] Session limit reached (%d/%d)! Rejecting connection.\n", 
                    session_count, MAX_SESSIONS);
             char *msg = "Server is full (32/32). Try again later.\n";
@@ -95,7 +104,8 @@ int main(int argc, char *argv[]) {
         // child create (fork)
         pid = fork();
         
-        if (pid == -1) {
+        if (pid == -1) 
+        {
             close(clnt_sock);
             session_count--;
             continue;
@@ -120,7 +130,8 @@ int main(int argc, char *argv[]) {
             printf("[Child Process %d] Client disconnected, terminating\n", getpid());
             exit(0);  // 자식 프로세스 종료
         }
-        else {  // ===== Parent Process (Mother Process) - sess(a) =====
+        else 
+        {  // ===== Parent Process (Mother Process) - sess(a) =====
             close(clnt_sock);  // Parent sess(a) → close(x)
             printf("[Mother Process] Parent sess(a) closed (x)\n");
             printf("[Mother Process] Back to accept loop...\n\n");
@@ -131,7 +142,8 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
-void *handle_client_thread(void *arg) {
+void *handle_client_thread(void *arg) 
+{
     ClientInfo *client = (ClientInfo*)arg;
     char buf[BUF_SIZE];
     int str_len;
@@ -139,12 +151,14 @@ void *handle_client_thread(void *arg) {
     printf("[Thread in Child %d] Thread I/O started (fd: %d)\n", getpid(), client->sock);
     
     // Thread I/O - 1초 간격
-    while(1) {
+    while(1) 
+    {
         // 1초 대기 후 receive
         sleep(1);
         
         str_len = read(client->sock, buf, BUF_SIZE);
-        if (str_len <= 0) {
+        if (str_len <= 0) 
+        {
             break;  // 연결 종료
         }
         
@@ -161,19 +175,24 @@ void *handle_client_thread(void *arg) {
     return NULL;
 }
 
-void read_childproc(int sig) {
+void 
+read_childproc(int sig) 
+{
     pid_t pid;
     int status;
     
     // 종료된 자식 프로세스 정리 (좀비 프로세스 방지)
-    while((pid = waitpid(-1, &status, WNOHANG)) > 0) {
+    while((pid = waitpid(-1, &status, WNOHANG)) > 0) 
+    {
         session_count--;
         printf("[Mother Process] Child %d terminated. Active sessions: %d/%d\n", 
                pid, session_count, MAX_SESSIONS);
     }
 }
 
-void error_handling(char *message) {
+void 
+error_handling(char *message) 
+{
     fputs(message, stderr);
     fputc('\n', stderr);
     exit(1);

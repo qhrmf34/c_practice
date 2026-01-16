@@ -12,7 +12,9 @@ int session_count = 0;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 // 클라이언트 처리 스레드
-void *handle_client_thread(void *arg) {
+void 
+*handle_client_thread(void *arg) 
+{
     ClientInfo *member = (ClientInfo*)arg;
     char buf[BUF_SIZE];
     int str_len;
@@ -21,9 +23,11 @@ void *handle_client_thread(void *arg) {
     printf("  [Thread #%d] Member connected (fd: %d)\n",
            member->session_id, member->sock);
 
-    while (count < 10) {
+    while (count < 10) 
+    {
         str_len = read(member->sock, buf, BUF_SIZE - 1);
-        if (str_len <= 0) {
+        if (str_len <= 0) 
+        {
             if (str_len == 0)
                 printf("  [Thread #%d] Client closed connection\n", member->session_id);
             else
@@ -54,13 +58,16 @@ void *handle_client_thread(void *arg) {
 }
 
 // 서버 소켓 생성
-int create_server_socket(void) {
+int 
+create_server_socket(void) 
+{
     int serv_sock;
     struct sockaddr_in serv_addr;
     int option = 1;
 
     serv_sock = socket(PF_INET, SOCK_STREAM, 0);
-    if (serv_sock == -1) {
+    if (serv_sock == -1) 
+    {
         perror("socket() error");
         return -1;
     }
@@ -72,13 +79,15 @@ int create_server_socket(void) {
     serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     serv_addr.sin_port = htons(PORT);
 
-    if (bind(serv_sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) == -1) {
+    if (bind(serv_sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) == -1) 
+    {
         perror("bind() error");
         close(serv_sock);
         return -1;
     }
 
-    if (listen(serv_sock, 32) == -1) {
+    if (listen(serv_sock, 32) == -1) 
+    {
         perror("listen() error");
         close(serv_sock);
         return -1;
@@ -87,7 +96,9 @@ int create_server_socket(void) {
     printf("[M.P] Server ready on port %d\n", PORT);
     return serv_sock;
 }
-void run_chat_room(int serv_sock) {
+void 
+run_chat_room(int serv_sock) 
+{
     int clnt_sock;
     struct sockaddr_in clnt_addr;
     socklen_t addr_size;
@@ -95,10 +106,12 @@ void run_chat_room(int serv_sock) {
     printf("\n[C.P %d] Chat Room Started\n", getpid());
     printf("[C.P] Max capacity: %d members\n\n", MAX_SESSIONS);
 
-    while (1) {
+    while (1) 
+    {
         pthread_mutex_lock(&mutex);
         
-        if (session_count >= MAX_SESSIONS) {
+        if (session_count >= MAX_SESSIONS) 
+        {
             pthread_mutex_unlock(&mutex);
             
             sleep(1);
@@ -112,7 +125,8 @@ void run_chat_room(int serv_sock) {
         addr_size = sizeof(clnt_addr);
         clnt_sock = accept(serv_sock, (struct sockaddr*)&clnt_addr, &addr_size);
         
-        if (clnt_sock == -1) {
+        if (clnt_sock == -1) 
+        {
             // accept 실패하면 카운트 되돌리기
             pthread_mutex_lock(&mutex);
             session_count--;
@@ -131,7 +145,8 @@ void run_chat_room(int serv_sock) {
 
         // 스레드 생성
         pthread_t thread;
-        if (pthread_create(&thread, NULL, handle_client_thread, (void*)member) != 0) {
+        if (pthread_create(&thread, NULL, handle_client_thread, (void*)member) != 0) 
+        {
             perror("pthread_create() error");
             
             // 스레드 생성 실패하면 정리

@@ -17,7 +17,8 @@ tracked_malloc(size_t size, const char* caller)
 {
     void* ptr = malloc(size);
     
-    if (ptr) {
+    if (ptr) 
+    {
         pthread_mutex_lock(&g_monitor.lock);
         g_monitor.malloc_count++;
         g_monitor.malloc_bytes += size;
@@ -32,7 +33,8 @@ tracked_malloc(size_t size, const char* caller)
 void
 tracked_free(void* ptr, size_t size, const char* caller)
 {
-    if (ptr) {
+    if (ptr) 
+    {
         pthread_mutex_lock(&g_monitor.lock);
         g_monitor.free_count++;
         g_monitor.free_bytes += size;
@@ -52,10 +54,13 @@ get_fd_count(void)
     int count = 0;
     DIR* dir = opendir("/proc/self/fd");
     
-    if (dir) {
+    if (dir) 
+    {
         struct dirent* entry;
-        while ((entry = readdir(dir)) != NULL) {
-            if (entry->d_name[0] != '.') {
+        while ((entry = readdir(dir)) != NULL) 
+        {
+            if (entry->d_name[0] != '.') 
+            {
                 count++;
             }
         }
@@ -71,8 +76,10 @@ get_zombie_count(void)
     FILE* fp = popen("ps -eo stat | grep -c Z 2>/dev/null", "r");
     int count = 0;
     
-    if (fp) {
-        if (fscanf(fp, "%d", &count) != 1) {
+    if (fp) 
+    {
+        if (fscanf(fp, "%d", &count) != 1) 
+        {
             count = 0;
         }
         pclose(fp);
@@ -106,24 +113,26 @@ print_resource_status(const char* label)
     pthread_mutex_unlock(&g_monitor.lock);
 }
 
-void
-log_info(const char* format, ...)
+void log_info(const char* format, ...)
 {
     va_list args;
     time_t now;
     char timestr[64];
-    
+
     time(&now);
     strftime(timestr, sizeof(timestr), "%H:%M:%S", localtime(&now));
-    
-    printf("[%s] ", timestr);
-    
+
+    FILE* fp = fopen("server.log", "a"); // 파일 열기
+    if (!fp) return;
+
+    fprintf(fp, "[%s] ", timestr);
+
     va_start(args, format);
-    vprintf(format, args);
+    vfprintf(fp, format, args);  // 파일에 출력
     va_end(args);
-    
-    printf("\n");
-    fflush(stdout);
+
+    fprintf(fp, "\n");
+    fclose(fp);
 }
 
 void

@@ -4,7 +4,9 @@
 #include <unistd.h>
 #include <sys/wait.h>
 
-int main(void) {
+int 
+main(void) 
+{
     int serv_sock;
     pid_t pid;
 
@@ -15,18 +17,22 @@ int main(void) {
         return -1;
 
     pid = fork();
-    if (pid == -1) {
+    if (pid == -1) 
+    {
         perror("fork() error");
         close(serv_sock);
         return -1;
     }
 
-    if (pid == 0) {
+    if (pid == 0) 
+    {
         // Child Process - Chat Room
         printf("[M.P] Creating Child Process (%d)...\n", getpid());
         run_chat_room(serv_sock);
         exit(0);
-    } else {
+    } 
+    else 
+    {
         // Main Process
         close(serv_sock);
         printf("[M.P] Waiting for chat room to close...\n\n");

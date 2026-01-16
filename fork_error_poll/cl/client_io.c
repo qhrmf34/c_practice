@@ -49,7 +49,8 @@ run_client_session(int sock, int client_id)
     start_time = time(NULL);
     
     /* I/O 루프 (BLOCKING) */
-    for (i = 0; i < IO_COUNT; i++) {
+    for (i = 0; i < IO_COUNT; i++) 
+    {
         /* 메시지 생성 */
         snprintf(send_buf, BUFFER_SIZE, 
                  "[Client #%d] Message #%d at %ld", 
@@ -59,17 +60,21 @@ run_client_session(int sock, int client_id)
         int msg_len = strlen(send_buf);
         int total_sent = 0;
         
-        while (total_sent < msg_len) {
+        while (total_sent < msg_len) 
+        {
             int n = write(sock, send_buf + total_sent, msg_len - total_sent);
             
             if (n < 0) {
-                if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                if (errno == EAGAIN || errno == EWOULDBLOCK) 
+                {
                     continue;  
                 }
-                else if (errno == EINTR) {
+                else if (errno == EINTR) 
+                {
                     continue;  
                 }
-                else if (errno == EPIPE) {
+                else if (errno == EPIPE) 
+                {
                     printf("[클라이언트 #%d] write EPIPE (연결 끊김)\n", client_id);
                     return -1;
                 }
@@ -83,29 +88,36 @@ run_client_session(int sock, int client_id)
         }
         
         /* 수신 */
-        while (1) {
+        while (1) 
+        {
             int n = read(sock, recv_buf, BUFFER_SIZE - 1);
             
-            if (n > 0) {
+            if (n > 0) 
+            {
                 /* 정상 수신 */
                 recv_buf[n] = '\0';
                 printf("[클라이언트 #%d] Echo: %s\n", client_id, recv_buf);
                 break;
             }
-            else if (n == 0) {
+            else if (n == 0) 
+            {
                 /* EOF */
                 printf("[클라이언트 #%d] 서버 종료 (EOF)\n", client_id);
                 return -1;
             }
-            else {
+            else 
+            {
                 /* read 에러 */
-                if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                if (errno == EAGAIN || errno == EWOULDBLOCK) 
+                {
                     continue;  
                 }
-                else if (errno == EINTR) {
+                else if (errno == EINTR) 
+                {
                     continue;  
                 }
-                else {
+                else 
+                {
                     perror("read()");
                     return -1;
                 }

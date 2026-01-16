@@ -13,7 +13,8 @@ main(int argc, char* argv[])
     printf("   Port: %d\n", SERVER_PORT);
     
     /* 명령줄 옵션 파싱 */
-    if (argc > 1 && strcmp(argv[1], "--waitpid") == 0) {
+    if (argc > 1 && strcmp(argv[1], "--waitpid") == 0) 
+    {
         g_use_waitpid = 1;
         log_info("[옵션] waitpid 모드 활성화");
     } else {

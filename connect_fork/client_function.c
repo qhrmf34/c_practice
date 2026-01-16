@@ -7,7 +7,9 @@
 #include <sys/socket.h>
 #include <pthread.h>
 
-void *client_thread(void *arg) {
+void 
+*client_thread(void *arg) 
+{
     ThreadArg *info = (ThreadArg*)arg;
     int sock;
     struct sockaddr_in serv_addr;
@@ -18,7 +20,8 @@ void *client_thread(void *arg) {
     
     // 소켓 생성
     sock = socket(PF_INET, SOCK_STREAM, 0);
-    if (sock == -1) {
+    if (sock == -1) 
+    {
         printf("[클라이언트 %d] socket() error\n", info->thread_id);
         return NULL;
     }
@@ -30,7 +33,8 @@ void *client_thread(void *arg) {
     serv_addr.sin_port = htons(info->port);
     
     // 서버 연결
-    if (connect(sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) == -1) {
+    if (connect(sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) == -1) 
+    {
         printf("[클라이언트 %d] connect() error\n", info->thread_id);
         close(sock);
         return NULL;
@@ -39,7 +43,8 @@ void *client_thread(void *arg) {
     printf("[클라이언트 %d] Connected to server (fd: %d)\n", info->thread_id, sock);
     
     // 메시지 송수신 - 10번 반복
-    while (count < 10) {
+    while (count < 10) 
+    {
         // 메시지 생성
         sprintf(msg, " Message #%d\n", count + 1);
         
@@ -50,7 +55,8 @@ void *client_thread(void *arg) {
         
         // 수신
         str_len = read(sock, recv_buf, BUF_SIZE - 1);
-        if (str_len <= 0) {
+        if (str_len <= 0) 
+        {
             printf("[클라이언트 %d] Server disconnected\n", info->thread_id);
             break;
         }
@@ -66,18 +72,23 @@ void *client_thread(void *arg) {
     return NULL;
 }
 
-void error_handling(char *message) {
+void 
+error_handling(char *message) 
+{
     fputs(message, stderr);
     fputc('\n', stderr);
     exit(1);
 }
 
-void client_run(int argc, char *argv[]) {
+void 
+client_run(int argc, char *argv[]) 
+{
     pthread_t threads[MAX_THREADS];
     ThreadArg args[MAX_THREADS];
     int i;
     
-    if (argc != 3) {
+    if (argc != 3) 
+    {
         printf("%s <IP> <port>\n", argv[0]);
         exit(1);
     }
@@ -87,18 +98,21 @@ void client_run(int argc, char *argv[]) {
     printf("Creating %d connection threads...\n\n", MAX_THREADS);
     
     // 클라이언트 스레드 생성
-    for (i = 0; i < MAX_THREADS; i++) {
+    for (i = 0; i < MAX_THREADS; i++) 
+    {
         args[i].ip = argv[1];
         args[i].port = atoi(argv[2]);
         args[i].thread_id = i + 1;
         
-        if (pthread_create(&threads[i], NULL, client_thread, (void*)&args[i]) != 0) {
+        if (pthread_create(&threads[i], NULL, client_thread, (void*)&args[i]) != 0) 
+        {
             error_handling("pthread_create() error");
         }
     }    
     
     // 모든 스레드 종료 대기
-    for (i = 0; i < MAX_THREADS; i++) {
+    for (i = 0; i < MAX_THREADS; i++) 
+    {
         pthread_join(threads[i], NULL);
     }
     

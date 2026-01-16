@@ -37,7 +37,8 @@ setup_signal_handlers(void)
         sa.sa_handler = sigchld_handler;
         sigemptyset(&sa.sa_mask);
         sa.sa_flags = SA_RESTART | SA_NOCLDSTOP;
-        if (sigaction(SIGCHLD, &sa, NULL) < 0) {
+        if (sigaction(SIGCHLD, &sa, NULL) < 0) 
+        {
             error_exit("sigaction(SIGCHLD)");
         }
         log_info("[설정] SIGCHLD 핸들러 등록");

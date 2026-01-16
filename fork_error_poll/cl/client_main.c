@@ -7,7 +7,8 @@ main(int argc, char* argv[])
     int client_id;
     int sock;
     
-    if (argc < 2) {
+    if (argc < 2) 
+    {
         printf("%s <SERVER_IP> [CLIENT_ID]\n", argv[0]);
         exit(1);
     }
@@ -22,7 +23,8 @@ main(int argc, char* argv[])
     
     /* 서버 연결 */
     sock = connect_to_server(server_ip, SERVER_PORT);
-    if (sock < 0) {
+    if (sock < 0) 
+    {
         fprintf(stderr, "서버 연결 실패\n");
         exit(1);
     }
