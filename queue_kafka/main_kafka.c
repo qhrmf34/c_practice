@@ -2,7 +2,9 @@
 #include <sys/wait.h>
 #include <stdio.h>
 
-int main() {
+int 
+ain() 
+{
     if (fork() == 0)
         execl("./producer_kafka", "producer_kafka", NULL);
 

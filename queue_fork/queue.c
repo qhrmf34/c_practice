@@ -12,7 +12,8 @@
 #define SHM_KEY 0x1234
 #define DATA_SIZE 100
 
-struct Queue {
+struct Queue 
+{
     char data[MAX_QUEUE_SIZE][DATA_SIZE];  // 데이터 배열
     int front;                              // 앞쪽 인덱스
     int rear;                               // 뒤쪽 인덱스
@@ -24,16 +25,22 @@ struct Queue {
 };
 
 // 큐 생성 (공유 메모리 생성 및 초기화)
-Queue* queue_create(void) {
+Queue* 
+queue_create(void) 
+{
     int shmid;
     Queue *q;
     
     // 공유 메모리 생성
     shmid = shmget(SHM_KEY, sizeof(Queue), IPC_CREAT | IPC_EXCL | 0666);
-    if (shmid < 0) {
-        if (errno == EEXIST) {
+    if (shmid < 0) 
+    {
+        if (errno == EEXIST) 
+        {
             fprintf(stderr, "큐가 이미 존재합니다. queue_attach() 사용\n");
-        } else {
+        } 
+        else 
+        {
             perror("shmget 실패");
         }
         return NULL;
@@ -41,7 +48,8 @@ Queue* queue_create(void) {
     
     // 공유 메모리 연결
     q = (Queue*)shmat(shmid, NULL, 0);
-    if (q == (Queue*)-1) {
+    if (q == (Queue*)-1) 
+    {
         perror("shmat 실패");
         shmctl(shmid, IPC_RMID, NULL);  // 실패 시 삭제
         return NULL;
@@ -73,20 +81,24 @@ Queue* queue_create(void) {
 }
 
 // 기존 큐에 연결
-Queue* queue_attach(void) {
+Queue* 
+queue_attach(void) 
+{
     int shmid;
     Queue *q;
     
     // 기존 공유 메모리 가져오기
     shmid = shmget(SHM_KEY, sizeof(Queue), 0666);
-    if (shmid < 0) {
+    if (shmid < 0) 
+    {
         perror("shmget 실패 (큐가 생성되지 않았습니다)");
         return NULL;
     }
     
     // 공유 메모리 연결
     q = (Queue*)shmat(shmid, NULL, 0);
-    if (q == (Queue*)-1) {
+    if (q == (Queue*)-1) 
+    {
         perror("shmat 실패");
         return NULL;
     }
@@ -96,18 +108,25 @@ Queue* queue_attach(void) {
 }
 
 // 큐 연결 해제
-void queue_detach(Queue *q) {
+void 
+queue_detach(Queue *q) 
+{
     if (q == NULL) return;
     
-    if (shmdt(q) < 0) {
+    if (shmdt(q) < 0) 
+    {
         perror("shmdt 실패");
-    } else {
+    } 
+    else 
+    {
         printf("[Queue] 큐 연결 해제\n");
     }
 }
 
 // 큐 삭제 (공유 메모리 삭제)
-void queue_destroy(Queue *q) {
+void 
+queue_destroy(Queue *q) 
+{
     if (q == NULL) return;
     
     int shmid = q->shmid;
@@ -121,21 +140,27 @@ void queue_destroy(Queue *q) {
     queue_detach(q);
     
     // 공유 메모리 삭제
-    if (shmctl(shmid, IPC_RMID, NULL) < 0) {
+    if (shmctl(shmid, IPC_RMID, NULL) < 0) 
+    {
         perror("shmctl 실패");
-    } else {
+    } 
+    else 
+    {
         printf("[Queue] 큐 삭제 완료\n");
     }
 }
 
 // enqueue: 데이터 삽입
-int queue_enqueue(Queue *q, const char *data) {
+int 
+queue_enqueue(Queue *q, const char *data) 
+{
     if (q == NULL || data == NULL) return -1;
     
     pthread_mutex_lock(&q->mutex);
     
     // 큐가 꽉 찰 때까지 대기
-    while (q->count >= MAX_QUEUE_SIZE) {
+    while (q->count >= MAX_QUEUE_SIZE) 
+    {
         pthread_cond_wait(&q->not_full, &q->mutex);
     }
     
@@ -154,10 +179,10 @@ int queue_enqueue(Queue *q, const char *data) {
     return 0;
 }
 
-// ═══════════════════════════════════════════════════════════
 // dequeue: 데이터 추출
-// ═══════════════════════════════════════════════════════════
-int queue_dequeue(Queue *q, char *buffer, size_t size) {
+int 
+queue_dequeue(Queue *q, char *buffer, size_t size) 
+{
     if (q == NULL || buffer == NULL) return -1;
     
     pthread_mutex_lock(&q->mutex);

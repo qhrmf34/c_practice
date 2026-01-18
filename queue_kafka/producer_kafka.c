@@ -9,9 +9,15 @@
 
 volatile sig_atomic_t running = 1;
 
-void handler(int s) { running = 0; }
+void 
+handler(int s) 
+{ 
+    running = 0; 
+}
 
-int main() {
+int 
+main() 
+{
     signal(SIGINT, handler);
 
     KafkaProducer *p = kafka_producer_create(KAFKA_BROKERS);
@@ -19,8 +25,10 @@ int main() {
     int count[QUEUE_COUNT] = {0};
     int cur = 0;
 
-    while (running) {
-        if (count[cur] < MAX_CHECK) {
+    while (running) 
+    {
+        if (count[cur] < MAX_CHECK) 
+        {
             // long 변수에 숫자 저장
             long num = cur * 111111111L;  // 0이면 0, 1이면 111111111, 2면 222222222
             

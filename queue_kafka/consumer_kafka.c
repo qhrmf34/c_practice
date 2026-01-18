@@ -6,9 +6,15 @@
 
 volatile sig_atomic_t running = 1;
 
-void handler(int s) { running = 0; }
+void 
+handler(int s) 
+{ 
+    running = 0; 
+}
 
-int validcheck(const char *msg) {
+int 
+validcheck(const char *msg) 
+{
     if (strlen(msg) != 9) return 0;
     char c = msg[0];
     if (c < '0' || c > '9') return 0;
@@ -17,15 +23,19 @@ int validcheck(const char *msg) {
     return 1;
 }
 
-int main() {
+int 
+main() 
+{
     signal(SIGINT, handler);
 
     KafkaConsumer *c =
         kafka_consumer_create(KAFKA_BROKERS, KAFKA_GROUP_ID, KAFKA_TOPIC);
 
     char buf[32];
-    while (running) {
-        if (kafka_consumer_receive(c, buf, sizeof(buf), 1000) == 0) {
+    while (running) 
+    {
+        if (kafka_consumer_receive(c, buf, sizeof(buf), 1000) == 0) 
+        {
             if (validcheck(buf))
                 printf("[Consumer] VALID   %s\n", buf);
             else

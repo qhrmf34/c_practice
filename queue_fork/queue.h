@@ -22,25 +22,29 @@ typedef struct Queue Queue;
  * 공유 메모리에 큐 생성
  * @return 큐 포인터, 실패 시 NULL
  */
-Queue* queue_create(void);
+Queue* 
+queue_create(void);
 
 /**
  * 기존 공유 메모리의 큐에 연결
  * @return 큐 포인터, 실패 시 NULL
  */
-Queue* queue_attach(void);
+Queue* 
+queue_attach(void);
 
 /**
  * 큐에서 연결 해제
  * @param q 큐 포인터
  */
-void queue_detach(Queue *q);
+void 
+queue_detach(Queue *q);
 
 /**
  * 큐 삭제 (공유 메모리 해제)
  * @param q 큐 포인터
  */
-void queue_destroy(Queue *q);
+void 
+queue_destroy(Queue *q);
 
 /**
  * 큐에 데이터 삽입 (블로킹)
@@ -48,7 +52,8 @@ void queue_destroy(Queue *q);
  * @param data 삽입할 데이터
  * @return 성공 0, 실패 -1
  */
-int queue_enqueue(Queue *q, const char *data);
+int 
+queue_enqueue(Queue *q, const char *data);
 
 /**
  * 큐에서 데이터 추출 (블로킹)
@@ -57,27 +62,31 @@ int queue_enqueue(Queue *q, const char *data);
  * @param size 버퍼 크기
  * @return 성공 0, 실패 -1
  */
-int queue_dequeue(Queue *q, char *buffer, size_t size);
+int 
+queue_dequeue(Queue *q, char *buffer, size_t size);
 
 /**
  * 큐의 현재 데이터 개수
  * @param q 큐 포인터
  * @return 데이터 개수
  */
-int queue_count(Queue *q);
+int 
+queue_count(Queue *q);
 
 /**
  * 큐가 비었는지 확인
  * @param q 큐 포인터
  * @return 비었으면 1, 아니면 0
  */
-int queue_is_empty(Queue *q);
+int 
+queue_is_empty(Queue *q);
 
 /**
  * 큐가 꽉 찼는지 확인
  * @param q 큐 포인터
  * @return 꽉 찼으면 1, 아니면 0
  */
-int queue_is_full(Queue *q);
+int 
+queue_is_full(Queue *q);
 
 #endif // QUEUE_H

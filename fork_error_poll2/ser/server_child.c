@@ -11,7 +11,8 @@
 #define IO_TARGET 10  // 10번의 I/O 목표
 
 // 자식 프로세스 메인 함수 - 스레드 없이 직접 처리
-void child_process_main(int client_sock, int session_id, struct sockaddr_in client_addr)
+void 
+child_process_main(int client_sock, int session_id, struct sockaddr_in client_addr)
 {
     // SIGPIPE 무시
     signal(SIGPIPE, SIG_IGN);

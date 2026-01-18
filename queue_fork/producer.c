@@ -6,7 +6,9 @@
 #include <unistd.h>
 #include "queue.h"
 
-int main() {
+int 
+main() 
+{
     Queue *q;
     char buffer[100];
     int i = 0;
@@ -15,21 +17,26 @@ int main() {
     
     // 큐에 연결
     q = queue_attach();
-    if (q == NULL) {
+    if (q == NULL) 
+    {
         fprintf(stderr, "큐 연결 실패\n");
         exit(1);
     }
     
     // 데이터 생산
-    while (1) {
+    while (1) 
+    {
         sprintf(buffer, "Data-%d (PID:%d)", i, getpid());
         
         printf("[생산자] '%s' 삽입 시도...\n", buffer);
         
-        if (queue_enqueue(q, buffer) == 0) {
+        if (queue_enqueue(q, buffer) == 0) 
+        {
             printf("[생산자] 삽입 완료! (현재 개수: %d)\n\n", 
                    queue_count(q));
-        } else {
+        } 
+        else 
+        {
             fprintf(stderr, "[생산자] 삽입 실패\n");
         }
         

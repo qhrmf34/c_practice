@@ -10,7 +10,9 @@ int running = 1;
 pthread_mutex_t print_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 // 시간 출력 함수
-void print_time() {
+void 
+print_time() 
+{
     time_t now;
     struct tm *t;
     time(&now);
@@ -19,14 +21,18 @@ void print_time() {
 }
 
 // 받기 스레드
-void* receive_thread(void* arg) {
+void* 
+receive_thread(void* arg) 
+{
     char buffer[1024];
     
-    while(running) {
+    while(running) 
+    {
         memset(buffer, 0, sizeof(buffer));
         int recv_len = recv(client_sock, buffer, sizeof(buffer), 0);
         
-        if (recv_len <= 0) {
+        if (recv_len <= 0) 
+        {
             pthread_mutex_lock(&print_mutex);
             printf("\n");
             print_time();
@@ -42,7 +48,8 @@ void* receive_thread(void* arg) {
         printf("서버: %s\n\n", buffer);
         pthread_mutex_unlock(&print_mutex);
         
-        if (strcmp(buffer, "quit") == 0) {
+        if (strcmp(buffer, "quit") == 0) 
+        {
             running = 0;
             break;
         }
@@ -52,7 +59,9 @@ void* receive_thread(void* arg) {
 }
 
 // 보내기 스레드
-void* send_thread(void* arg) {
+void* 
+send_thread(void* arg) 
+{
     char message[1024];
     
     // 첫 입력 프롬프트
@@ -62,11 +71,13 @@ void* send_thread(void* arg) {
     fflush(stdout);
     pthread_mutex_unlock(&print_mutex);
     
-    while(running) {
+    while(running) 
+    {
         fgets(message, sizeof(message), stdin);
         message[strcspn(message, "\n")] = 0;
         
-        if (strlen(message) == 0) {
+        if (strlen(message) == 0) 
+        {
             // 빈 입력이면 다시 프롬프트
             pthread_mutex_lock(&print_mutex);
             print_time();
@@ -78,7 +89,8 @@ void* send_thread(void* arg) {
         
         send(client_sock, message, strlen(message), 0);
         
-        if (strcmp(message, "quit") == 0) {
+        if (strcmp(message, "quit") == 0) 
+        {
             pthread_mutex_lock(&print_mutex);
             printf("\n채팅 종료\n");
             pthread_mutex_unlock(&print_mutex);
@@ -87,7 +99,8 @@ void* send_thread(void* arg) {
         }
         
         // 다음 입력 프롬프트
-        if (running) {
+        if (running) 
+        {
             pthread_mutex_lock(&print_mutex);
             print_time();
             printf("나: ");
@@ -99,7 +112,9 @@ void* send_thread(void* arg) {
     return NULL;
 }
 
-int main() {
+int 
+main() 
+{
     // 소켓 생성
     client_sock = socket(AF_INET, SOCK_STREAM, 0);
     printf("클라이언트 소켓 생성\n");
@@ -111,15 +126,14 @@ int main() {
     server_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
     
     printf("🚶 서버에 연결 중...\n");
-    if (connect(client_sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+    if (connect(client_sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) 
+    {
         printf("연결 실패\n");
         return 1;
     }
     
     printf("서버에 연결됨!\n");
-    printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
     printf("채팅 시작!\n");
-    printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n");
     
     // 스레드 생성
     pthread_t recv_tid, send_tid;

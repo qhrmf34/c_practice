@@ -4,17 +4,23 @@
 #include <stdlib.h>
 #include <string.h>
 
-struct KafkaProducer {
+struct 
+KafkaProducer 
+{
     rd_kafka_t *rk;
 };
 
-struct KafkaConsumer {
+struct 
+KafkaConsumer 
+{
     rd_kafka_t *rk;
     rd_kafka_topic_partition_list_t *topics;
 };
 
 /* Producer */
-KafkaProducer* kafka_producer_create(const char *brokers) {
+KafkaProducer* 
+kafka_producer_create(const char *brokers)
+{
     char errstr[512];
     KafkaProducer *p = malloc(sizeof(*p));
 
@@ -26,10 +32,12 @@ KafkaProducer* kafka_producer_create(const char *brokers) {
     return p;
 }
 
-int kafka_producer_send(KafkaProducer *p,
+int 
+kafka_producer_send(KafkaProducer *p,
                         const char *topic,
                         const char *key,
-                        const char *data) {
+                        const char *data) 
+{
     rd_kafka_producev(
         p->rk,
         RD_KAFKA_V_TOPIC(topic),
@@ -42,16 +50,20 @@ int kafka_producer_send(KafkaProducer *p,
     return 0;
 }
 
-void kafka_producer_destroy(KafkaProducer *p) {
+void 
+kafka_producer_destroy(KafkaProducer *p) 
+{
     rd_kafka_flush(p->rk, 5000);
     rd_kafka_destroy(p->rk);
     free(p);
 }
 
 /* Consumer */
-KafkaConsumer* kafka_consumer_create(const char *brokers,
-                                     const char *group_id,
-                                     const char *topic) {
+KafkaConsumer* 
+kafka_consumer_create(const char *brokers,
+                      const char *group_id,
+                      const char *topic) 
+{
     char errstr[512];
     KafkaConsumer *c = malloc(sizeof(*c));
 
@@ -74,11 +86,13 @@ KafkaConsumer* kafka_consumer_create(const char *brokers,
 int kafka_consumer_receive(KafkaConsumer *c,
                            char *buffer,
                            size_t size,
-                           int timeout_ms) {
+                           int timeout_ms) 
+{
     rd_kafka_message_t *msg = rd_kafka_consumer_poll(c->rk, timeout_ms);
     if (!msg) return 1;
 
-    if (msg->err == 0) {
+    if (msg->err == 0) 
+    {
         size_t len = msg->len < size-1 ? msg->len : size-1;
         memcpy(buffer, msg->payload, len);
         buffer[len] = '\0';
@@ -89,7 +103,9 @@ int kafka_consumer_receive(KafkaConsumer *c,
     return -1;
 }
 
-void kafka_consumer_destroy(KafkaConsumer *c) {
+void 
+kafka_consumer_destroy(KafkaConsumer *c) 
+{
     rd_kafka_consumer_close(c->rk);
     rd_kafka_destroy(c->rk);
     free(c);
