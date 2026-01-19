@@ -82,4 +82,22 @@ void
 log_init(void);  // 로그 파일 초기화 (옵션)
 
 
+//Stack trace 함수 선언
+void 
+setup_parent_signal_handlers(void);
+void 
+setup_child_signal_handlers(void);
+void 
+signal_crash_handler(int sig);
+
+//테스트 함수들
+void 
+test_segfault(void);
+void 
+test_abort(void);
+void 
+test_division_by_zero(void);
+void 
+test_crash_with_stack(void);
+
 #endif

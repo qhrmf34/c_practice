@@ -13,7 +13,7 @@ long
 get_heap_usage(void)
 {
 #ifdef __GLIBC__
-    struct mallinfo mi = mallinfo();
+    struct mallinfo2 mi = mallinfo2();
     // arena: 할당된 총 메모리 (bytes)
     // uordblks: 사용 중인 메모리 (bytes)
     return (long)mi.uordblks;

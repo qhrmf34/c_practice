@@ -10,7 +10,7 @@
 #include <errno.h>
 #include <time.h>
 #include <poll.h>
-
+//server_run 수정 전 코드 - > signal에서 동기 에러 발생(log_info오류)
 // 전역 변수
 static volatile sig_atomic_t server_running = 1;
 static int total_forks = 0;
@@ -19,70 +19,16 @@ static int zombie_reaped = 0;
 static time_t start_time;
 static pid_t g_parent_pid = 0;
 
-// === async-signal-safe 헬퍼 함수들 ===
-
-// 안전한 문자열 출력 (async-signal-safe)
-static void 
-safe_write(const char *msg)
-{
-    size_t len = 0;
-    while (msg[len]) len++;
-    write(STDERR_FILENO, msg, len);
-}
-
-// 정수를 문자열로 변환 후 출력 (async-signal-safe)
-static void
-safe_write_int(int num)
-{
-    char buf[32];
-    int i = 0;
-    int is_negative = 0;
-    
-    if (num < 0)
-    {
-        is_negative = 1;
-        num = -num;
-    }
-    
-    if (num == 0)
-    {
-        buf[i++] = '0';
-    }
-    else
-    {
-        while (num > 0)
-        {
-            buf[i++] = '0' + (num % 10);
-            num /= 10;
-        }
-    }
-    
-    if (is_negative)
-    {
-        buf[i++] = '-';
-    }
-    
-    // 역순으로 출력
-    while (i > 0)
-    {
-        write(STDERR_FILENO, &buf[--i], 1);
-    }
-}
-
-// SIGCHLD 핸들러 - 좀비 프로세스 회수 (async-signal-safe)
+// SIGCHLD 핸들러 - 좀비 프로세스 회수
 static void 
 sigchld_handler(int signo)
 {
-    (void)signo;
     int saved_errno = errno;
     pid_t pid;
     int status;
-    
     while ((pid = waitpid(-1, &status, WNOHANG)) > 0)
     {
         zombie_reaped++;
-        
-        // write()를 사용한 안전한 로깅 (async-signal-safe)
         if (WIFEXITED(status))
         {
             // 정상 종료
@@ -91,57 +37,45 @@ sigchld_handler(int signo)
             // 크래시로 인한 종료인지 확인 (128 + signal number)
             if (exit_code >= 128)
             {
-                safe_write("[SIGCHLD] 자식 프로세스 크래시 종료 (PID: ");
-                safe_write_int(pid);
-                safe_write(", 크래시 코드: ");
-                safe_write_int(exit_code);
-                safe_write(") - 좀비 회수: ");
-                safe_write_int(zombie_reaped);
-                safe_write("\n");
+                log_message(LOG_ERROR, "자식 프로세스 크래시 종료 (PID: %d, 크래시 코드: %d) - 좀비 회수: %d",
+                           pid, exit_code, zombie_reaped);
             }
             else
             {
-                safe_write("[SIGCHLD] 자식 프로세스 정상 종료 (PID: ");
-                safe_write_int(pid);
-                safe_write(", 종료코드: ");
-                safe_write_int(exit_code);
-                safe_write(") - 좀비 회수: ");
-                safe_write_int(zombie_reaped);
-                safe_write("\n");
+                log_message(LOG_INFO, "자식 프로세스 정상 종료 (PID: %d, 종료코드: %d) - 좀비 회수: %d",
+                           pid, exit_code, zombie_reaped);
             }
         }
         else if (WIFSIGNALED(status))
         {
             // 시그널로 종료 (crash)
             int sig = WTERMSIG(status);
-            safe_write("[SIGCHLD] 자식 프로세스 시그널 종료 (PID: ");
-            safe_write_int(pid);
-            safe_write(", 시그널: ");
-            safe_write_int(sig);
-            safe_write(") - 좀비 회수: ");
-            safe_write_int(zombie_reaped);
-            safe_write("\n");
+            log_message(LOG_ERROR, "자식 프로세스 시그널 종료 (PID: %d, 시그널: %d - %s) - 좀비 회수: %d",
+                       pid, sig, strsignal(sig), zombie_reaped);
         }
     }
     
     errno = saved_errno;
 }
 
-// 서버 종료 signal handler (async-signal-safe)
+// 서버 종료 signal handler
 static void 
 shutdown_handler(int signo)
 {
-    (void)signo;
-    
     // 부모 프로세스만 처리
+    // 현재 시그널 신호를 무시한 자식이 만약 여기로 들어오면
     if (getpid() != g_parent_pid)
     {
-        _exit(0);  // 자식은 조용히 종료
+        exit(0);  // 자식은 조용히 종료
     }
-    
-    // 플래그만 설정 (async-signal-safe)
-    // 로그는 메인 루프 밖에서 출력
     server_running = 0;
+    time_t end_time = time(NULL);
+
+    log_message(LOG_INFO, "서버 종료 시그널 수신 (시그널: %d)", signo);
+    log_message(LOG_INFO, "총 실행 시간: %ld초", end_time - start_time);
+    log_message(LOG_INFO, "성공한 fork: %d개", total_forks);
+    log_message(LOG_INFO, "실패한 fork: %d개", fork_errors);
+    log_message(LOG_INFO, "회수한 좀비: %d개", zombie_reaped);
 }
 
 void 
@@ -288,20 +222,11 @@ run_server(void)
                            strerror(errno), errno);
                 continue;
             }
-            
             // 연결 수락 성공
             session_id++;
             log_message(LOG_INFO, "새 연결 수락: %s:%d (Session #%d, fd: %d)",
                        inet_ntoa(clnt_addr.sin_addr), ntohs(clnt_addr.sin_port), 
                        session_id, clnt_sock);
-            
-            // === fork 전에 시그널 블로킹 (critical section) ===
-            sigset_t block_set, old_set;
-            sigemptyset(&block_set);
-            sigaddset(&block_set, SIGINT);
-            sigaddset(&block_set, SIGTERM);
-            sigprocmask(SIG_BLOCK, &block_set, &old_set);
-            
             // fork
             pid = fork();
 
@@ -324,24 +249,17 @@ run_server(void)
                                strerror(errno), errno);
                 }
                 close(clnt_sock);
-                
-                // 시그널 언블록
-                sigprocmask(SIG_SETMASK, &old_set, NULL);
                 continue;
             }
-            
             //  자식 프로세스 
             if (pid == 0)
             {
                 //  자식용 crash handler 재설정
                 setup_child_signal_handlers();
 
-                // SIGINT, SIGTERM 무시
+                // SIGPIPE 무시 - 클라이언트가 소켓 연결을 강제로 끊었을 경우 write시 즉시 종료를 막음
                 signal(SIGINT, SIG_IGN);
                 signal(SIGTERM, SIG_IGN);
-                
-                // 시그널 마스크 복원
-                sigprocmask(SIG_SETMASK, &old_set, NULL);
                 
                 //  서버 소켓 닫기
                 close(serv_sock);
@@ -357,10 +275,6 @@ run_server(void)
                 // 부모 프로세스
                 total_forks++;
                 close(clnt_sock);
-                
-                // 시그널 언블록
-                sigprocmask(SIG_SETMASK, &old_set, NULL);
-                
                 log_message(LOG_INFO, "자식 프로세스 생성 (PID: %d, Session #%d)", 
                            pid, session_id);
                 log_message(LOG_DEBUG, "생성된 자식: %d개, 회수된 좀비: %d개", 
@@ -368,16 +282,7 @@ run_server(void)
             }
         }
     }
-    
-    // === 종료 처리 (시그널 핸들러 외부에서 로그 출력) ===
-    time_t end_time = time(NULL);
-    
-    log_message(LOG_INFO, "서버 종료 시그널 수신");
-    log_message(LOG_INFO, "총 실행 시간: %ld초", end_time - start_time);
-    log_message(LOG_INFO, "성공한 fork: %d개", total_forks);
-    log_message(LOG_INFO, "실패한 fork: %d개", fork_errors);
-    log_message(LOG_INFO, "회수한 좀비: %d개", zombie_reaped);
-    
+    // 종료 처리
     print_resource_limits();
     log_message(LOG_INFO, "서버 정상 종료 중...");
     
