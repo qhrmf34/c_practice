@@ -26,7 +26,7 @@ sigchld_handler(int signo)
     pid_t pid;
     int status;
     
-    // 모든 종료된 자식 프로세스 회수 (non-blocking)
+    // 모든 종료된 자식 프로세스 회수 
     while ((pid = waitpid(-1, &status, WNOHANG)) > 0)
     {
         zombie_reaped++;

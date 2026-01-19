@@ -17,7 +17,9 @@ main(int argc, char* argv[])
     {
         g_use_waitpid = 1;
         log_info("[옵션] waitpid 모드 활성화");
-    } else {
+    } 
+    else 
+    {
         log_info("[옵션] 기본 모드 (좀비 발생)");
         printf("         waitpid 사용: %s --waitpid\n\n", argv[0]);
     }
