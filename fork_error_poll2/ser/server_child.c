@@ -10,7 +10,7 @@
 #include <poll.h>    
 
 #define IO_TARGET 10         // 10번의 I/O 목표
-#define POLL_TIMEOUT 30000   // poll 타임아웃 (밀리초) = 30초
+#define POLL_TIMEOUT 1000   // poll 타임아웃 (밀리초) = 1초
 
 // 자식 프로세스 메인 함수 - 스레드 없이 직접 처리
 void 

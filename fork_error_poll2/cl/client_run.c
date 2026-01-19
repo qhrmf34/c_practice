@@ -10,7 +10,7 @@
 #include <time.h>
 #include <poll.h>   
 
-#define POLL_TIMEOUT 30000   // poll 타임아웃 (밀리초) = 30초
+#define POLL_TIMEOUT 10000   // poll 타임아웃 (밀리초) = 10초
 
 void
 client_run(const char *ip, int port, int client_id)

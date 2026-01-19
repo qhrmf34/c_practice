@@ -3,10 +3,12 @@
 
 #include <arpa/inet.h>
 #include <time.h>
+#include <stdarg.h>
 
 #define BUF_SIZE 1024
 #define PORT 9190
 #define MAX_SESSIONS 100
+#define LOG_FILE "server.log"
 
 // 세션 상태
 typedef enum 
@@ -16,6 +18,14 @@ typedef enum
     SESSION_CLOSING,
     SESSION_CLOSED
 } SessionState;
+
+//로그
+typedef enum
+{
+    LOG_INFO,
+    LOG_ERROR,
+    LOG_DEBUG
+} LogLevel;
 
 // Session Descriptor - thread_id 제거
 typedef struct 
@@ -42,19 +52,34 @@ typedef struct
 // 함수 선언
 int 
 create_server_socket(void);
+
 void 
 run_server(void);
+
 void 
 child_process_main(int client_sock, int session_id, struct sockaddr_in client_addr);
+
 void 
 print_resource_limits(void);
+
 void 
 monitor_resources(ResourceMonitor *monitor);
+
 void 
 print_resource_status(ResourceMonitor *monitor);
+
 long 
 get_heap_usage(void);
+
 int 
 count_open_fds(void);
+
+// 로그 함수 선언
+void 
+log_message(LogLevel level, const char* format, ...);
+
+void 
+log_init(void);  // 로그 파일 초기화 (옵션)
+
 
 #endif

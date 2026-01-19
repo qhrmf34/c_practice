@@ -33,13 +33,13 @@ sigchld_handler(int signo)
         
         if (WIFEXITED(status))
         {
-            printf("[부모] 자식 프로세스 종료 (PID: %d, 종료코드: %d) - 좀비 회수: %d\n",
-                   pid, WEXITSTATUS(status), zombie_reaped);
+            log_message(LOG_INFO, "자식 프로세스 종료 (PID: %d, 종료코드: %d) - 좀비 회수: %d",
+                       pid, WEXITSTATUS(status), zombie_reaped);
         }
         else if (WIFSIGNALED(status))
         {
-            printf("[부모] 자식 프로세스 시그널 종료 (PID: %d, 시그널: %d)\n",
-                   pid, WTERMSIG(status));
+            log_message(LOG_ERROR, "자식 프로세스 시그널 종료 (PID: %d, 시그널: %d)",
+                       pid, WTERMSIG(status));
         }
     }
     
@@ -51,12 +51,13 @@ static void
 shutdown_handler(int signo)
 {
     server_running = 0;
-    printf("\n[서버] Shutdown signal received...\n");
     time_t end_time = time(NULL);
-    printf("[통계] 총 실행 시간: %ld초\n", end_time - start_time);
-    printf("[통계] 성공한 fork: %d개\n", total_forks);
-    printf("[통계] 실패한 fork: %d개\n", fork_errors);
-    printf("[통계] 회수한 좀비: %d개\n", zombie_reaped);
+
+    log_message(LOG_INFO, "서버 종료 시그널 수신");
+    log_message(LOG_INFO, "총 실행 시간: %ld초", end_time - start_time);
+    log_message(LOG_INFO, "성공한 fork: %d개", total_forks);
+    log_message(LOG_INFO, "실패한 fork: %d개", fork_errors);
+    log_message(LOG_INFO, "회수한 좀비: %d개", zombie_reaped);
 }
 
 // 서버 실행 (메인 루프 - poll 기반)
@@ -72,7 +73,9 @@ run_server(void)
     int poll_result;
     
     start_time = time(NULL);
-    
+
+    log_init();
+
     // // SIGCHLD 핸들러 설정 - 좀비 프로세스 회수
     // struct sigaction sa_chld;
     // sa_chld.sa_handler = sigchld_handler;
@@ -80,7 +83,7 @@ run_server(void)
     // sa_chld.sa_flags = SA_RESTART | SA_NOCLDSTOP;
     // if (sigaction(SIGCHLD, &sa_chld, NULL) == -1)
     // {
-    //     fprintf(stderr, "[에러] sigaction(SIGCHLD) 설정 실패: %s\n", strerror(errno));
+    //     log_message(LOG_ERROR, "sigaction(SIGCHLD) 설정 실패: %s", strerror(errno));
     //     exit(1);
     // }
     
@@ -244,20 +247,20 @@ run_server(void)
     }
     
     print_resource_limits();
-    printf("\n[서버] 정상 종료 중...\n");
+    log_message(LOG_INFO, "서버 정상 종료 중...");
     
     if (close(serv_sock) == -1)
     {
-        fprintf(stderr, "[에러] close(serv_sock) 실패: %s\n", strerror(errno));
+        log_message(LOG_ERROR, "close(serv_sock) 실패: %s", strerror(errno));
     }
     
-    printf("[서버] 서버 소켓 닫기 완료\n");
+    log_message(LOG_INFO, "서버 소켓 닫기 완료");
     
     // 남은 좀비 프로세스 회수
-    printf("[서버] 남은 자식 프로세스 대기 중...\n");
+    log_message(LOG_INFO, "남은 자식 프로세스 대기 중...");
     while (waitpid(-1, NULL, WNOHANG) > 0)
     {
         zombie_reaped++;
     }
-    printf("[서버] 최종 회수된 좀비: %d개\n", zombie_reaped);
+    log_message(LOG_INFO, "최종 회수된 좀비: %d개", zombie_reaped);
 }
