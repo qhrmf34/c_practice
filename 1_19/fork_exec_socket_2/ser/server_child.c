@@ -8,14 +8,28 @@
 #include <errno.h>
 #include <time.h>
 #include <poll.h>    
+#include <signal.h>
 
 #define IO_TARGET 10         // 10번의 I/O 목표
 #define POLL_TIMEOUT 1000   // poll 타임아웃 (밀리초) = 1초
+#define IDLE_TIMEOUT 30      // idle timeout (초) = 30초
+
+static volatile sig_atomic_t worker_running = 1;
+
+static void
+worker_term_handler(int sig)
+{
+    (void)sig;
+    worker_running = 0;  // 종료 플래그 설정
+}
 
 // 자식 프로세스 메인 함수 - 스레드 없이 직접 처리
 void 
 child_process_main(int client_sock, int session_id, struct sockaddr_in client_addr)
 {
+    // 1. SIGTERM 처리 (정상 종료 요청)
+    signal(SIGTERM, worker_term_handler);
+    signal(SIGPIPE, SIG_IGN); //write시 클라이언트가 연결 끊으면 프로세스가 바로 끊겨서 리소스 정리 불가
     printf("\n[자식 프로세스 #%d (PID:%d)] 시작\n", session_id, getpid());
     printf("[자식] 클라이언트: %s:%d\n", 
            inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
@@ -70,10 +84,26 @@ child_process_main(int client_sock, int session_id, struct sockaddr_in client_ad
     session->start_time = time(NULL);
     session->last_activity = time(NULL);
     session->io_count = 0;
-    
+    time_t now = time(NULL);
+
     // 클라이언트와 10번 I/O 수행
-    while (session->io_count < IO_TARGET && session->state == SESSION_ACTIVE)
+    while (worker_running && 
+        session->io_count < IO_TARGET && 
+        session->state == SESSION_ACTIVE)
     {
+        // === SIGTERM 체크 (poll 전) ===
+        if (!worker_running)
+        {
+            printf("[자식 #%d] SIGTERM 수신, 정상 종료\n", session_id);
+            goto cleanup;
+        }
+        now = time(NULL);
+        if (now - session->last_activity > IDLE_TIMEOUT)
+        {
+            fprintf(stderr, "[자식 #%d] Idle timeout (%ld초 무활동)\n",
+                    session_id, now - session->last_activity);
+            goto cleanup;
+        }
         //읽기: poll로 읽기 가능 여부 확인 (타임아웃 포함) 
         int read_poll_ret = poll(&read_pfd, 1, POLL_TIMEOUT);
         if (read_poll_ret == -1)  //  read시 poll 에러
@@ -83,21 +113,15 @@ child_process_main(int client_sock, int session_id, struct sockaddr_in client_ad
                 printf("[자식 #%d] read poll interrupted (EINTR), 재시도\n", session_id);
                 continue;
             }
-            else  // 심각한 에러
-            {
-                fprintf(stderr, "[자식 #%d] read poll() error: %s\n", 
-                        session_id, strerror(errno));
-                goto cleanup;
-            }
-        }
-
-        if (read_poll_ret == 0)  // 타임아웃 발생!
-        {
-            fprintf(stderr, "[자식 #%d] read poll 타임아웃 (%d초 초과, 데이터 수신 없음)\n", 
-                    session_id, POLL_TIMEOUT / 1000);
+            fprintf(stderr, "[자식 #%d] read poll() error: %s\n", 
+                    session_id, strerror(errno));
             goto cleanup;
         }
-        
+        if (read_poll_ret == 0)  // 타임아웃 발생!
+        {
+            // 타임아웃 - idle timeout은 위에서 체크했으므로 재시도
+            continue;
+        }
         // poll_ret > 0: 이벤트 발생
         // 에러 이벤트를 먼저 체크 
         if (read_pfd.revents & POLLNVAL)
@@ -134,12 +158,10 @@ child_process_main(int client_sock, int session_id, struct sockaddr_in client_ad
                 {
                     continue;  // 재시도 가능한 에러
                 }
-                
                 fprintf(stderr, "[자식 #%d] read() error: %s\n", 
                         session_id, strerror(errno));
                 goto cleanup;
             }
-
             session->last_activity = time(NULL);
             buf[str_len] = 0;  // NULL 종료 문자 추가
             
@@ -163,28 +185,15 @@ child_process_main(int client_sock, int session_id, struct sockaddr_in client_ad
                 }
                 if (write_poll_ret == 0)  // 타임아웃 발생!
                 {
-                    fprintf(stderr, "[자식 #%d] write poll 타임아웃 (%d초 초과, 쓰기 불가)\n", 
-                            session_id, POLL_TIMEOUT / 1000);
-                    goto cleanup;
+                    // Write timeout - 클라이언트가 느린 경우
+                    // 너무 오래 걸리면 idle timeout에 걸림
+                    continue;
                 }
-                
                 // 에러 이벤트를 먼저 체크 
-                if (write_pfd.revents & POLLNVAL)
+                // 에러 이벤트 체크
+                if (write_pfd.revents & (POLLNVAL | POLLERR | POLLHUP))
                 {
-                    fprintf(stderr, "[자식 #%d] [CRITICAL] write POLLNVAL: 잘못된 FD (%d)\n", 
-                            session_id, session->sock);
-                    goto cleanup;
-                }
-
-                if (write_pfd.revents & POLLERR)
-                {
-                    fprintf(stderr, "[자식 #%d] write POLLERR: 소켓 에러 발생\n", session_id);
-                    goto cleanup;
-                }
-
-                if (write_pfd.revents & POLLHUP)
-                {
-                    printf("[자식 #%d] write POLLHUP: 클라이언트 연결 끊김\n", session_id);
+                    fprintf(stderr, "[자식 #%d] write poll 에러 이벤트\n", session_id);
                     goto cleanup;
                 }
                 // POLLOUT 이벤트 확인: 쓰기 가능
@@ -207,10 +216,7 @@ child_process_main(int client_sock, int session_id, struct sockaddr_in client_ad
                             goto cleanup;
                         }
                     }
-                    else  // write 성공
-                    {
-                        sent += write_result;
-                    }
+                    sent += write_result;
                 }
             }
             // I/O 완료
@@ -220,13 +226,39 @@ child_process_main(int client_sock, int session_id, struct sockaddr_in client_ad
         }
     }
 cleanup:
-    // 세션 종료 처리 
+    // === 세션 종료 처리 ===
     session->state = SESSION_CLOSED;
     time_t end_time = time(NULL);
     
-    printf("[자식 #%d (PID:%d)] 처리 완료 - %d I/O 완료, %ld초 소요\n", 
-           session_id, getpid(),
-           session->io_count, end_time - session->start_time);
+    // 종료 이유 로깅
+    if (!worker_running)
+    {
+        printf("[자식 #%d (PID:%d)] SIGTERM으로 조기 종료 - "
+               "%d I/O 완료 (목표: %d), %ld초 소요\n", 
+               session_id, getpid(),
+               session->io_count, IO_TARGET, end_time - session->start_time);
+    }
+    else if (now - session->last_activity > IDLE_TIMEOUT)
+    {
+        printf("[자식 #%d (PID:%d)] Idle timeout으로 종료 - "
+               "%d I/O 완료 (목표: %d), %ld초 소요\n", 
+               session_id, getpid(),
+               session->io_count, IO_TARGET, end_time - session->start_time);
+    }
+    else if (session->io_count >= IO_TARGET)
+    {
+        printf("[자식 #%d (PID:%d)] 정상 완료 - "
+               "%d I/O 완료, %ld초 소요\n", 
+               session_id, getpid(),
+               session->io_count, end_time - session->start_time);
+    }
+    else
+    {
+        printf("[자식 #%d (PID:%d)] 처리 완료 - "
+               "%d I/O 완료 (목표: %d), %ld초 소요\n", 
+               session_id, getpid(),
+               session->io_count, IO_TARGET, end_time - session->start_time);
+    }
     
     // 모니터 업데이트
     monitor.active_sessions--;

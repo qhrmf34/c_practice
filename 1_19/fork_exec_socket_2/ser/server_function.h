@@ -24,7 +24,8 @@ typedef enum
 {
     LOG_INFO,
     LOG_ERROR,
-    LOG_DEBUG
+    LOG_DEBUG,
+    LOG_WARNING
 } LogLevel;
 
 // Session Descriptor - thread_id 제거

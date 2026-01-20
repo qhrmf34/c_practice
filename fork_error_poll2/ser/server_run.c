@@ -216,7 +216,7 @@ run_server(void)
         
         if (poll_result == -1)
         {
-            if (errno == EINTR)
+            if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)
             {
                 // 시그널 인터럽트 (정상) - 재시도
                 continue;
@@ -295,7 +295,7 @@ run_server(void)
                        inet_ntoa(clnt_addr.sin_addr), ntohs(clnt_addr.sin_port), 
                        session_id, clnt_sock);
             
-            // === fork 전에 시그널 블로킹 (critical section) ===
+            //  시그널 블로킹 (critical section) - fork중간에 ctrl+c 시그널 올 경우 부모 자식중 하나만 종료 처리 될 수 있음
             sigset_t block_set, old_set;
             sigemptyset(&block_set);
             sigaddset(&block_set, SIGINT);
@@ -307,6 +307,7 @@ run_server(void)
 
             if (pid == -1)
             {
+                //  fork 실패 시그널 블로킹 상태이기에 프로세스, 메모리만 체크
                 fork_errors++;
                 if (errno == EAGAIN)
                 {
@@ -352,20 +353,18 @@ run_server(void)
                 //  정상 종료
                 _exit(0);
             }
-            else
-            {
-                // 부모 프로세스
-                total_forks++;
-                close(clnt_sock);
-                
-                // 시그널 언블록
-                sigprocmask(SIG_SETMASK, &old_set, NULL);
-                
-                log_message(LOG_INFO, "자식 프로세스 생성 (PID: %d, Session #%d)", 
-                           pid, session_id);
-                log_message(LOG_DEBUG, "생성된 자식: %d개, 회수된 좀비: %d개", 
-                           total_forks, zombie_reaped);
-            }
+            // 부모 프로세스
+            total_forks++;
+            close(clnt_sock);
+            
+            // 시그널 언블록
+            sigprocmask(SIG_SETMASK, &old_set, NULL);
+            
+            log_message(LOG_INFO, "자식 프로세스 생성 (PID: %d, Session #%d)", 
+                       pid, session_id);
+            log_message(LOG_DEBUG, "생성된 자식: %d개, 회수된 좀비: %d개", 
+                       total_forks, zombie_reaped);
+            
         }
     }
     
@@ -381,9 +380,14 @@ run_server(void)
     print_resource_limits();
     log_message(LOG_INFO, "서버 정상 종료 중...");
     
-    if (close(serv_sock) == -1)
-    {
-        log_message(LOG_ERROR, "close(serv_sock) 실패: %s", strerror(errno));
+    int close_result;
+    do {
+        close_result = close(serv_sock);
+    } while (close_result == -1 && errno == EINTR);
+    
+    if (close_result == -1) {
+        log_message(LOG_ERROR, "close() 실패: %s (무시)", strerror(errno));
+        // Linux에서는 이미 닫혔으므로 문제 없음
     }
     
     log_message(LOG_INFO, "서버 소켓 닫기 완료");

@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <time.h>
 #include <poll.h>   
+#include <signal.h>
 
 #define POLL_TIMEOUT 10000   // poll 타임아웃 (밀리초) = 10초
 
@@ -25,7 +26,8 @@ client_run(const char *ip, int port, int client_id)
     time_t start_time, end_time;
     
     start_time = time(NULL);
-    
+
+    signal(SIGPIPE, SIG_IGN);
     // 소켓 생성 (기본 blocking 모드)
     sock = socket(PF_INET, SOCK_STREAM, 0);
     if (sock == -1)

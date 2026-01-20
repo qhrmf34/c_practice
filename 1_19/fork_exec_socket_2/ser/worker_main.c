@@ -29,7 +29,6 @@ main(int argc, char *argv[])
     char client_ip[INET_ADDRSTRLEN];
     int client_port;
     struct sockaddr_in client_addr;
-    
     //  인자 개수 검증 
     if (argc != 5)
     {
@@ -139,3 +138,4 @@ main(int argc, char *argv[])
     
     return EXIT_SUCCESS;
 }
+
