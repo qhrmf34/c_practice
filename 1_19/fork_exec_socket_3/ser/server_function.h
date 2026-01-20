@@ -4,12 +4,15 @@
 #include <arpa/inet.h>
 #include <time.h>
 #include <stdarg.h>
-#include <signal.h>
+#include <signal.h>  // sig_atomic_t 타입을 위해 필요
 
 #define BUF_SIZE 1024
 #define PORT 9190
 #define MAX_SESSIONS 100
 #define LOG_FILE "server.log"
+#define MAX_WORKERS 50              // 동시 실행 가능한 최대 worker 수
+#define SESSION_TIMEOUT 300         // 세션 전체 타임아웃 (5분)
+#define SESSION_IDLE_TIMEOUT 60     // idle 타임아웃 (1분)
 
 // 세션 상태
 typedef enum 
@@ -29,7 +32,7 @@ typedef enum
     LOG_WARNING
 } LogLevel;
 
-// Session Descriptor - thread_id 제거
+// Session Descriptor
 typedef struct 
 {
     int sock;                      // 클라이언트 소켓

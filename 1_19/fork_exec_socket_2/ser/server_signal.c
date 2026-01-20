@@ -16,7 +16,7 @@ safe_write(const char *msg)
     // strlen 직접 계산 (async-signal-safe)
     size_t len = 0;
     while (msg[len]) len++;
-    write(STDERR_FILENO, msg, len);
+    (void)write(STDERR_FILENO, msg, len);
 }
 
 // Stack trace 출력
@@ -47,8 +47,6 @@ signal_crash_handler(int sig)
         safe_write("\n!!! WORKER CRASH !!!\n");
         print_trace();
     }
-    // 시그널 초기화 후 재발생 - 왜 죽었는지 OS와 부모에게 알림
-    signal(sig, SIG_DFL);
     raise(sig); //SIGSEGV재발생 -> 커널이 해당 프로세스 강제 종료
 }
 
@@ -58,9 +56,14 @@ setup_parent_signal_handlers(void)
 {
     g_parent_pid = getpid();
     
-    signal(SIGSEGV, signal_crash_handler);
-    signal(SIGABRT, signal_crash_handler);
-    signal(SIGBUS, signal_crash_handler);
+    struct sigaction sa;
+    sa.sa_handler = signal_crash_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_RESETHAND;  // 한 번 실행 후 기본 동작으로 -> 왜 죽었는지 OS와 부모에게 알리기 위해
+    
+    sigaction(SIGSEGV, &sa, NULL);
+    sigaction(SIGABRT, &sa, NULL);
+    sigaction(SIGBUS, &sa, NULL);
 }
 
 // 자식용 설정 (exec 전, exec 후 모두 사용)
@@ -70,7 +73,13 @@ setup_child_signal_handlers(void)
     // g_parent_pid는 설정하지 않음
     // exec 전: 부모에서 상속받은 값 유지
     // exec 후: 0 (새 프로그램)
-    signal(SIGSEGV, signal_crash_handler);
-    signal(SIGABRT, signal_crash_handler);
-    signal(SIGBUS, signal_crash_handler);
+    struct sigaction sa;
+    sa.sa_handler = signal_crash_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_RESETHAND;
+    
+    sigaction(SIGSEGV, &sa, NULL);
+    sigaction(SIGABRT, &sa, NULL);
+    sigaction(SIGBUS, &sa, NULL);
+    
 }

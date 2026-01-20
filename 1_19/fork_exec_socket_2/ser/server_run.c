@@ -34,7 +34,7 @@ safe_write(const char *msg)
 {
     size_t len = 0;
     while (msg[len]) len++;
-    write(STDERR_FILENO, msg, len);
+    (void)write(STDERR_FILENO, msg, len);
 }
 
 // 정수를 문자열로 변환 후 출력 (async-signal-safe)
@@ -69,7 +69,7 @@ safe_write_int(int num)
     // 역순으로 출력
     while (i > 0)
     {
-        write(STDERR_FILENO, &buf[--i], 1);
+        (void)write(STDERR_FILENO, &buf[--i], 1);
     }
 }
 
@@ -140,6 +140,7 @@ static void
 shutdown_handler(int signo)
 {
     (void)signo;
+    int saved_errno = errno;  // signal로 인해 값이 변경되지 않도록.
     // 부모 프로세스만 처리. fork되고 SIGINT를 무시하기 전 찰나에 자식이 들어온다면
     if (getpid() != g_parent_pid)
     {
@@ -148,6 +149,7 @@ shutdown_handler(int signo)
     // 플래그만 설정
     // 로그는 메인 루프 밖에서 출력
     server_running = 0; //while문 빠져나감
+    errno = saved_errno; 
 }
 /*
  * fork-exec 방식으로 worker 프로세스 생성
@@ -316,18 +318,22 @@ run_server(void)
     struct sockaddr_in clnt_addr;
     socklen_t addr_size;
     int session_id = 0;
-    struct pollfd fds[1];
     int poll_result;
     
     start_time = time(NULL);
     g_parent_pid = getpid();
-
+    // SIGPIPE 무시 (write 시 EPIPE만 받도록)
+    struct sigaction sa_pipe;
+    sa_pipe.sa_handler = SIG_IGN;
+    sigemptyset(&sa_pipe.sa_mask);
+    sa_pipe.sa_flags = 0;
+    if (sigaction(SIGPIPE, &sa_pipe, NULL) == -1)
+    {
+        log_message(LOG_ERROR, "sigaction(SIGPIPE) 설정 실패: %s", strerror(errno));
+        exit(1);
+    }
     log_message(LOG_INFO, "SIGPIPE 무시 설정 완료");
-
-    // 부모용 Stack trace 설정
-    setup_parent_signal_handlers();
-    log_init();
-
+    
     // SIGCHLD 핸들러 설정
     struct sigaction sa_chld;
     sa_chld.sa_handler = sigchld_handler;
@@ -338,13 +344,12 @@ run_server(void)
         log_message(LOG_ERROR, "sigaction(SIGCHLD) 설정 실패: %s", strerror(errno));
         exit(1);
     }
-    
+
     // SIGINT, SIGTERM 핸들러
     struct sigaction shutdown_act;
     shutdown_act.sa_handler = shutdown_handler; 
     sigemptyset(&shutdown_act.sa_mask);
     shutdown_act.sa_flags = 0;
-    
     if (sigaction(SIGINT, &shutdown_act, NULL) == -1)
     {
         log_message(LOG_ERROR, "sigaction(SIGINT) 설정 실패: %s", strerror(errno));
@@ -358,6 +363,12 @@ run_server(void)
     log_message(LOG_INFO, "=== Multi-Process Echo Server (fork-exec) 시작 ===");
     log_message(LOG_INFO, "Port: %d", PORT);
     
+    // 부모용 Stack trace 설정
+    setup_parent_signal_handlers();
+    //sleep(1);
+    //test_crash_with_stack();
+    log_init();
+    
     // 서버 소켓 생성
     serv_sock = create_server_socket();
     if (serv_sock == -1)
@@ -367,12 +378,18 @@ run_server(void)
     }
     log_message(LOG_INFO, "클라이언트 연결 대기 중 (poll 사용, fork-exec 방식)");
     // poll 설정
-    fds[0].fd = serv_sock;
-    fds[0].events = POLLIN;
+    struct pollfd fds[1] = {
+        {
+            .fd = serv_sock,
+            .events = POLLIN,
+            .revents = 0
+        }
+    };
 
     // 메인 루프
     while (server_running)
     {
+        fds[0].revents = 0;
         // poll로 신규 연결 대기 (1초 timeout)
         poll_result = poll(fds, 1, 1000);
         
@@ -395,7 +412,7 @@ run_server(void)
             // 타임아웃 (신규 연결 없음) - 재시도
             continue;
         }
-        if (fds[0].revents & (POLLERR | POLLHUP | POLLNVAL))
+        if (fds[0].revents & (POLLERR | POLLHUP | POLLNVAL)) //POLLIN과 POLLHUP이 같이 오는 경우 있기에 먼저 검사
         {
             log_message(LOG_ERROR, "poll 에러 이벤트 발생: 0x%x", fds[0].revents);
             
@@ -485,83 +502,124 @@ run_server(void)
     log_message(LOG_INFO, "실패한 fork: %d개", fork_errors);
     log_message(LOG_INFO, "회수한 좀비: %d개", zombie_reaped);
     
-    // 모든 Worker에게 SIGTERM 전송
-    int initial_count = worker_count;  // 시작 시점의 worker 수 저장
-    log_message(LOG_INFO, "활성 Worker %d개에게 SIGTERM 전송", initial_count);
+    // 모든 Worker에게 SIGTERM 전송 (graceful shutdown 요청) 
+    log_message(LOG_INFO, "활성 Worker에게 SIGTERM 전송");
     
+    // 시그널 블록 (SIGCHLD가 worker_pids 배열을 수정하지 못하도록)
+    sigset_t block_set, old_set;
+    sigemptyset(&block_set);
+    sigaddset(&block_set, SIGCHLD);
+    sigprocmask(SIG_BLOCK, &block_set, &old_set);
+    
+    // 현재 시점의 worker 목록을 복사
+    int initial_count = worker_count;
+    pid_t worker_list[MAX_WORKERS];
+    memcpy(worker_list, worker_pids, worker_count * sizeof(pid_t));
+    
+    // 시그널 언블록
+    sigprocmask(SIG_SETMASK, &old_set, NULL);
+    
+    log_message(LOG_INFO, "총 %d개 Worker에게 SIGTERM 전송 시작", initial_count);
+    
+    // 복사된 목록으로 SIGTERM 전송
     for (int i = 0; i < initial_count; i++)
     {
-        //  worker_count는 SIGCHLD에서 감소할 수 있으므로 저장된 PID만 사용
-        if (i < worker_count && kill(worker_pids[i], SIGTERM) == 0)
+        if (kill(worker_list[i], SIGTERM) == 0)
         {
-            log_message(LOG_DEBUG, "SIGTERM 전송: PID %d", worker_pids[i]);
+            log_message(LOG_DEBUG, "SIGTERM 전송 성공: PID %d", worker_list[i]);
+        }
+        else
+        {
+            // 이미 종료된 프로세스일 수 있음 (정상)
+            if (errno != ESRCH)  // ESRCH = 프로세스 없음
+            {
+                log_message(LOG_DEBUG, "SIGTERM 전송 실패: PID %d (%s)", 
+                           worker_list[i], strerror(errno));
+            }
         }
     }
     
-    // 5초동안 모든 자식프로세스 사라졌는지 검사
-    log_message(LOG_INFO, "Worker 정상 종료 대기 중 (5초)...");
+    //  5초 동안 정상 종료 대기 
+    log_message(LOG_INFO, "Worker 정상 종료 대기 중 (최대 5초)...");
     time_t wait_start = time(NULL);
     
     while (time(NULL) - wait_start < 5)
     {
-        if (worker_count == 0)  // SIGCHLD에서 감소시킴
+        if (worker_count == 0)  // SIGCHLD 핸들러에서 감소됨
         {
             log_message(LOG_INFO, "모든 Worker 정상 종료 완료");
             break;
         }
+        usleep(10000);  // 100ms마다 체크
     }
     
     int graceful_exits = initial_count - worker_count;
-    log_message(LOG_INFO, "정상 종료: %d개, 남은 Worker: %d개",
+    log_message(LOG_INFO, "정상 종료: %d개, 남은 Worker: %d개", 
                graceful_exits, worker_count);
     
-    // 남은 Worker 강제 종료
+    //  남은 Worker 강제 종료 (SIGKILL) 
     if (worker_count > 0)
     {
         log_message(LOG_WARNING, "남은 Worker %d개 강제 종료 (SIGKILL)", worker_count);
         
-        //  현재 worker_count만큼만 순회
-        int remaining = worker_count;
-        for (int i = 0; i < remaining; i++)
+        // 다시 배열 복사 (SIGCHLD가 계속 배열을 수정하고 있으므로)
+        sigprocmask(SIG_BLOCK, &block_set, &old_set);
+        
+        int kill_count = worker_count;
+        pid_t kill_list[MAX_WORKERS];
+        memcpy(kill_list, worker_pids, worker_count * sizeof(pid_t));
+        
+        sigprocmask(SIG_SETMASK, &old_set, NULL);
+        
+        // SIGKILL 전송
+        for (int i = 0; i < kill_count; i++)
         {
-            if (i < worker_count && kill(worker_pids[i], 0) == 0)
+            // 프로세스가 아직 살아있는지 확인
+            if (kill(kill_list[i], 0) == 0)  // signal 0 = 존재 여부만 확인
             {
-                log_message(LOG_WARNING, "SIGKILL 전송: PID %d", worker_pids[i]);
-                kill(worker_pids[i], SIGKILL);
+                log_message(LOG_WARNING, "SIGKILL 전송: PID %d", kill_list[i]);
+                kill(kill_list[i], SIGKILL);
             }
         }
         
-        // SIGKILL 후 잠깐 대기
-        usleep(100000);  // 100ms
+        // SIGKILL 후 잠깐 대기 (커널이 처리할 시간)
+        usleep(200000);  // 200ms
     }
     
-    
+    // 서버 소켓 닫기 
     if (close(serv_sock) == -1)
     {
         log_message(LOG_ERROR, "close(serv_sock) 실패: %s", strerror(errno));
     }
+    else
+    {
+        log_message(LOG_INFO, "서버 소켓 닫기 완료");
+    }
     
-    log_message(LOG_INFO, "서버 소켓 닫기 완료");
-    
-    //  최종 회수 (WNOHANG 사용)
+    // 최종 좀비 회수 
     log_message(LOG_INFO, "최종 좀비 회수 중...");
     int final_count = 0;
     pid_t pid;
+    int status;
     
-    //  WNOHANG 사용 (블로킹 방지)
-    while ((pid = waitpid(-1, NULL, WNOHANG)) > 0)
+    // WNOHANG 사용 (블로킹 방지)
+    while ((pid = waitpid(-1, &status, WNOHANG)) > 0)
     {
         final_count++;
+        if (WIFSIGNALED(status) && WTERMSIG(status) == SIGKILL)
+        {
+            log_message(LOG_DEBUG, "SIGKILL로 종료된 Worker 회수: PID %d", pid);
+        }
     }
     
-    //  에러 체크
+    // 에러 체크
     if (pid == -1 && errno != ECHILD)
     {
         log_message(LOG_ERROR, "waitpid() 에러: %s", strerror(errno));
     }
     
     log_message(LOG_INFO, "최종 회수: %d개", final_count);
-    log_message(LOG_INFO, "총 회수된 좀비: %d개", zombie_reaped);
+    log_message(LOG_INFO, "총 회수된 좀비: %d개", zombie_reaped + final_count);
     log_message(LOG_INFO, "남은 활성 Worker: %d개", worker_count);
     
     if (worker_count > 0)
@@ -569,14 +627,10 @@ run_server(void)
         log_message(LOG_WARNING, "경고: 회수하지 못한 Worker가 있을 수 있음");
     }
     
+    // 최종 리소스 상태 출력 
     print_resource_limits();
     
-    if (close(serv_sock) == -1)
-    {
-        log_message(LOG_ERROR, "close(serv_sock) 실패: %s", strerror(errno));
-    }
-    
-    log_message(LOG_INFO, "서버 정상 종료 완료");
+    log_message(LOG_INFO, "=== 서버 정상 종료 완료 ===");
 }
 
 // [사용자] Ctrl+C - 서버

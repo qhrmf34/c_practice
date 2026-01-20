@@ -11,32 +11,11 @@
 
 #define IO_TARGET 10         // 10번의 I/O 목표
 #define POLL_TIMEOUT 1000   // poll 타임아웃 (밀리초) = 1초
-#define SESSION_IDLE_TIMEOUT 60     // idle 타임아웃 (1분)
-
-volatile sig_atomic_t worker_shutdown_requested = 0;
-
-static void 
-worker_term_handler(int signo)
-{
-    (void)signo;
-    int saved_errno = errno;
-    worker_shutdown_requested = 1;  // 플래그만 설정 (graceful shutdown)
-    errno = saved_errno;
-}
 
 // 자식 프로세스 메인 함수 - 스레드 없이 직접 처리
 void 
 child_process_main(int client_sock, int session_id, struct sockaddr_in client_addr)
 {
-    struct sigaction sa_term;
-    sa_term.sa_handler = worker_term_handler;
-    sigemptyset(&sa_term.sa_mask);
-    sa_term.sa_flags = 0;
-    if (sigaction(SIGTERM, &sa_term, NULL) == -1)
-    {
-        fprintf(stderr, "[자식 #%d] sigaction(SIGTERM) 설정 실패: %s\n", 
-                session_id, strerror(errno));
-    }
     printf("\n[자식 프로세스 #%d (PID:%d)] 시작\n", session_id, getpid());
     printf("[자식] 클라이언트: %s:%d\n", 
            inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
@@ -72,18 +51,14 @@ child_process_main(int client_sock, int session_id, struct sockaddr_in client_ad
     print_resource_status(&monitor);
     
     //  poll 구조체 설정 (읽기용)
-    struct pollfd read_pfd = {
-        .fd = session->sock, // 감시할 소켓
-        .events = POLLIN,  // 읽기 가능 이벤트 감시
-        .revents = 0  // 명시적 초기화
-    };
-
-    struct pollfd write_pfd = {
-        .fd = session->sock,
-        .events = POLLOUT,
-        .revents = 0  // 명시적 초기화
-    };
-
+    struct pollfd read_pfd;
+    read_pfd.fd = session->sock;      // 감시할 소켓
+    read_pfd.events = POLLIN;          // 읽기 가능 이벤트 감시
+    
+    //  poll 구조체 설정 (쓰기용)
+    struct pollfd write_pfd;
+    write_pfd.fd = session->sock;
+    write_pfd.events = POLLOUT;
 
     // 메인 프로세스에서 처리
     char buf[BUF_SIZE];
@@ -98,23 +73,31 @@ child_process_main(int client_sock, int session_id, struct sockaddr_in client_ad
     
     // 클라이언트와 10번 I/O 수행
     while (session->io_count < IO_TARGET && 
-        session->state == SESSION_ACTIVE &&
-        !worker_shutdown_requested)
+           session->state == SESSION_ACTIVE &&
+           !worker_shutdown_requested)  // SIGTERM 받으면 종료
     {
         // === 타임아웃 체크 ===
         time_t current_time = time(NULL);
+        time_t session_duration = current_time - session->start_time;
         time_t idle_duration = current_time - session->last_activity;
         
+        // 세션 전체 타임아웃 체크
+        if (session_duration > SESSION_TIMEOUT)
+        {
+            fprintf(stderr, "[자식 #%d] 세션 타임아웃 (%ld초 초과)\n", 
+                    session_id, session_duration);
+            goto cleanup;
+        }
+        
         // idle 타임아웃 체크
-        if (idle_duration >= SESSION_IDLE_TIMEOUT)
+        if (idle_duration > SESSION_IDLE_TIMEOUT)
         {
             fprintf(stderr, "[자식 #%d] idle 타임아웃 (%ld초 무활동)\n", 
                     session_id, idle_duration);
             goto cleanup;
         }
-        //poll 호출 직전 초기화
-        read_pfd.revents = 0;
-        //읽기: poll로 읽기 가능 여부 확인 (타임아웃 포함) 
+        
+        // === 읽기: poll로 읽기 가능 여부 확인 (타임아웃 포함) ===
         int read_poll_ret = poll(&read_pfd, 1, POLL_TIMEOUT);
         if (read_poll_ret == -1)  //  read시 poll 에러
         {
@@ -133,34 +116,28 @@ child_process_main(int client_sock, int session_id, struct sockaddr_in client_ad
 
         if (read_poll_ret == 0)  // 타임아웃 발생!
         {
-            fprintf(stderr, "[자식 #%d] read poll 타임아웃 (%d초 초과, 데이터 수신 없음)\n", 
-                    session_id, POLL_TIMEOUT / 1000);
-            goto cleanup;
+            // poll timeout은 1초이므로, 다시 루프 돌아서 세션/idle timeout 체크
+            continue;
         }
         
         // poll_ret > 0: 이벤트 발생
-        // 에러 이벤트를 먼저 체크    
-        if (read_pfd.revents & (POLLERR | POLLHUP | POLLNVAL))
+        // 에러 이벤트를 먼저 체크 
+        if (read_pfd.revents & POLLNVAL)
         {
-            log_message(LOG_ERROR, "poll 에러 이벤트 발생: 0x%x", read_pfd.revents);
-            
-            if (read_pfd.revents & POLLERR)
-            {
-                log_message(LOG_ERROR, "read POLLNVAL:POLLERR: 소켓 에러");
-                goto cleanup;
-            }
-            if (read_pfd.revents & POLLHUP)
-            {
-                log_message(LOG_ERROR, "read POLLNVAL:POLLHUP: 연결 끊김");
-                goto cleanup;
-            }
-            if (read_pfd.revents & POLLNVAL)
-            {
-                log_message(LOG_ERROR, "read POLLNVAL:POLLNVAL: 잘못된 FD");
-                goto cleanup;
-            }
+            fprintf(stderr, "[자식 #%d] [CRITICAL] read POLLNVAL: 잘못된 FD (%d)\n", 
+                    session_id, session->sock);
+            goto cleanup;
         }
-        
+        if (read_pfd.revents & POLLERR)
+        {
+            fprintf(stderr, "[자식 #%d] read POLLERR: 소켓 에러 발생\n", session_id);
+            goto cleanup;
+        }
+        if (read_pfd.revents & POLLHUP)
+        {
+            printf("[자식 #%d] read POLLHUP: 클라이언트 연결 끊김\n", session_id);
+            goto cleanup;
+        }
         // revents 확인: POLLIN 이벤트
         if (read_pfd.revents & POLLIN)
         {
@@ -192,8 +169,6 @@ child_process_main(int client_sock, int session_id, struct sockaddr_in client_ad
             ssize_t sent = 0;
             while (sent < str_len)
             {
-                //write poll 호출 직전 초기화
-                write_pfd.revents = 0;
                 // write poll: 쓰기 가능 여부 확인
                 int write_poll_ret = poll(&write_pfd, 1, POLL_TIMEOUT);
                 if (write_poll_ret == -1)  // poll 에러
@@ -216,27 +191,24 @@ child_process_main(int client_sock, int session_id, struct sockaddr_in client_ad
                 }
                 
                 // 에러 이벤트를 먼저 체크 
-                if (write_pfd.revents & (POLLERR | POLLHUP | POLLNVAL))
+                if (write_pfd.revents & POLLNVAL)
                 {
-                    log_message(LOG_ERROR, "poll 에러 이벤트 발생: 0x%x", write_pfd.revents);
-
-                    if (write_pfd.revents & POLLERR)
-                    {
-                        log_message(LOG_ERROR, "write POLLNVAL:POLLERR: 소켓 에러");
-                        goto cleanup;
-                    }
-                    if (write_pfd.revents & POLLHUP)
-                    {
-                        log_message(LOG_ERROR, "write POLLNVAL:POLLHUP: 연결 끊김");
-                        goto cleanup;
-                    }
-                    if (write_pfd.revents & POLLNVAL)
-                    {
-                        log_message(LOG_ERROR, "write POLLNVAL:POLLNVAL: 잘못된 FD");
-                        goto cleanup;
-                    }
+                    fprintf(stderr, "[자식 #%d] [CRITICAL] write POLLNVAL: 잘못된 FD (%d)\n", 
+                            session_id, session->sock);
+                    goto cleanup;
                 }
-        
+
+                if (write_pfd.revents & POLLERR)
+                {
+                    fprintf(stderr, "[자식 #%d] write POLLERR: 소켓 에러 발생\n", session_id);
+                    goto cleanup;
+                }
+
+                if (write_pfd.revents & POLLHUP)
+                {
+                    printf("[자식 #%d] write POLLHUP: 클라이언트 연결 끊김\n", session_id);
+                    goto cleanup;
+                }
                 // POLLOUT 이벤트 확인: 쓰기 가능
                 if (write_pfd.revents & POLLOUT)
                 {
@@ -272,15 +244,17 @@ child_process_main(int client_sock, int session_id, struct sockaddr_in client_ad
             }
             // I/O 완료
             session->io_count++;
-                        session->last_activity = time(NULL);  // 활동 시간 업데이트
+            session->last_activity = time(NULL);  // 활동 시간 업데이트
             printf("[자식 #%d] I/O 완료: %d/%d\n", 
                    session_id, session->io_count, IO_TARGET);
         }
     }
+    
 cleanup:
     // 세션 종료 처리 
     session->state = SESSION_CLOSED;
     time_t end_time = time(NULL);
+    
     // 종료 이유 로그
     if (worker_shutdown_requested)
     {
@@ -294,10 +268,6 @@ cleanup:
                session_id, getpid(),
                session->io_count, end_time - session->start_time);
     }
-    
-    printf("[자식 #%d (PID:%d)] 처리 완료 - %d I/O 완료, %ld초 소요\n", 
-           session_id, getpid(),
-           session->io_count, end_time - session->start_time);
     
     // 모니터 업데이트
     monitor.active_sessions--;
