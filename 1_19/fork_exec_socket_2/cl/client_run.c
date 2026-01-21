@@ -14,7 +14,7 @@
 #define POLL_TIMEOUT 10000
 
 //  graceful shutdown 플래그 추가
-static volatile sig_atomic_t client_running = 1;
+volatile sig_atomic_t client_running = 1;
 
 //  SIGINT 핸들러 추가
 static void

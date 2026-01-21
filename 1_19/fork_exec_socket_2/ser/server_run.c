@@ -684,3 +684,8 @@ run_server(void)
 // [서버] while (server_running)  // 1 → 계속
 //     ↓
 // [서버] poll() 다시 호출
+
+// stacktrace로 함수가 나오면 
+// nm server | grep test_crash_with_stack로 주소 확인 offset과 주소를 더해 확인
+// addr2line -f -C -e server 0x24b4
+//  gcc -Wall -Wextra -O2 client_connect.c client_main.c client_run.c  -g -rdynamic -o client
