@@ -16,6 +16,7 @@ static const char* log_level_string(LogLevel level)
         case LOG_INFO:  return "INFO ";
         case LOG_ERROR: return "ERROR";
         case LOG_DEBUG: return "DEBUG";
+        case LOG_WARNING: return "WARNING";
         default:        return "UNKN ";
     }
 }

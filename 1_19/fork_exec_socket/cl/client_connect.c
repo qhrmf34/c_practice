@@ -45,7 +45,7 @@ client_connect(int argc, char *argv[])
     int iteration = 0;
     
     // 무한 루프: connect → 10번 I/O → close → 반복
-    while (1)
+    while (client_running)
     {
         iteration++;
         printf("\n[클라이언트 #%d] ===== 반복 #%d =====\n", client_id, iteration);

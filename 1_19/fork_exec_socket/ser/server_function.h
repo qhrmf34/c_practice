@@ -4,6 +4,7 @@
 #include <arpa/inet.h>
 #include <time.h>
 #include <stdarg.h>
+#include <signal.h>
 
 #define BUF_SIZE 1024
 #define PORT 9190
@@ -19,15 +20,16 @@ typedef enum
     SESSION_CLOSED
 } SessionState;
 
-// 로그
+//로그
 typedef enum
 {
     LOG_INFO,
     LOG_ERROR,
-    LOG_DEBUG
+    LOG_DEBUG,
+    LOG_WARNING
 } LogLevel;
 
-// Session Descriptor
+// Session Descriptor - thread_id 제거
 typedef struct 
 {
     int sock;                      // 클라이언트 소켓
@@ -42,8 +44,8 @@ typedef struct
 // 리소스 모니터링 정보
 typedef struct 
 {
-    int active_sessions;           // 활성 세션 수
-    int total_sessions;            // 총 처리한 세션 수
+    int active_sessions;           // 활성 세션 수 (항상 0 또는 1)
+    int total_sessions;            // 총 처리한 세션 수 (항상 1)
     long heap_usage;               // 힙 메모리 사용량 (bytes)
     int open_fds;                  // 열린 파일 디스크립터 수
     time_t start_time;             // 프로세스 시작 시간
@@ -56,9 +58,8 @@ create_server_socket(void);
 void 
 run_server(void);
 
-// Worker 프로세스 메인 함수 (fork+exec 버전)
 void 
-worker_process_main(int client_sock, int session_id);
+child_process_main(int client_sock, int session_id, struct sockaddr_in client_addr);
 
 void 
 print_resource_limits(void);
@@ -75,40 +76,32 @@ get_heap_usage(void);
 int 
 count_open_fds(void);
 
-// 전체 시스템 모니터링 (서버 + 모든 Worker)
-void 
-print_system_status(void);
-
-void 
-print_simple_status(void);
-
 // 로그 함수 선언
 void 
 log_message(LogLevel level, const char* format, ...);
 
 void 
-log_init(void);
+log_init(void);  // 로그 파일 초기화 (옵션)
 
-// Stack trace 함수 선언
+
+//Stack trace 함수 선언
 void 
 setup_parent_signal_handlers(void);
-
 void 
 setup_child_signal_handlers(void);
-
 void 
 signal_crash_handler(int sig);
 
-// 테스트 함수들
+// Worker shutdown 관련
+extern volatile sig_atomic_t worker_shutdown_requested;  // child_process_main에서 참조
+
+//테스트 함수들
 void 
 test_segfault(void);
-
 void 
 test_abort(void);
-
 void 
 test_division_by_zero(void);
-
 void 
 test_crash_with_stack(void);
 

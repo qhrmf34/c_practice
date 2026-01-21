@@ -6,7 +6,7 @@
 void test_segfault(void)
 {
     int *p = NULL;
-    *p = 42;  // SIGSEGV 발생 - NULL 포이터 역참조
+    *p = 42;  // SIGSEGV 발생 - NULL 포인터 역참조
 }
 
 void test_abort(void)
