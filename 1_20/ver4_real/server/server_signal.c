@@ -14,8 +14,10 @@ signal_handler(int signo)
     int saved_errno = errno;
     
     if (signo == SIGCHLD) 
+    {
         if (g_state)
             g_state->child_died = 1;
+    }
     else if (signo == SIGINT || signo == SIGTERM) 
     {
         if (g_state && getpid() == g_state->parent_pid)
@@ -56,8 +58,19 @@ void
 setup_child_signal_handlers(ServerState *state)
 {
     g_state = state;
-    signal(SIGINT, SIG_IGN);
-    
+    struct sigaction sa_ignore;
+    sa_ignore.sa_handler = SIG_IGN; // 신호 무시 설정
+    sigemptyset(&sa_ignore.sa_mask);
+    sa_ignore.sa_flags = 0;
+
+    // SIGINT를 sigaction을 사용하여 무시
+    if (sigaction(SIGINT, &sa_ignore, NULL) == -1)
+        log_message(LOG_ERROR, "sigaction(SIGINT) 무시 설정 실패: %s", strerror(errno));
+
+    // 나머지 SIGPIPE 무시 설정
+    if (sigaction(SIGPIPE, &sa_ignore, NULL) == -1)
+        log_message(LOG_ERROR, "sigaction(SIGPIPE) 실패: %s", strerror(errno));
+
     struct sigaction sa;
     sa.sa_handler = signal_handler;
     sigemptyset(&sa.sa_mask);

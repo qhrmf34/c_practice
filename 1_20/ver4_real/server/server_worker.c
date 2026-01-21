@@ -41,8 +41,7 @@ fork_and_exec_worker(int serv_sock, int clnt_sock, int session_id, struct sockad
             log_message(LOG_ERROR, "fork() 실패: %s", strerror(errno));
         return -1;
     }
-    
-    if (pid == 0) 
+    else if (pid == 0) 
     {
         setup_child_signal_handlers(state);
         close(serv_sock);
@@ -55,10 +54,7 @@ fork_and_exec_worker(int serv_sock, int clnt_sock, int session_id, struct sockad
         
         if (clnt_sock != 3)
             close(clnt_sock);
-        
-        signal(SIGINT, SIG_IGN);
-        signal(SIGTERM, SIG_DFL);
-        
+
         char *const argv[] = {"./worker", session_str, ip_str, port_str, NULL};
         execvp("./worker", argv);
         

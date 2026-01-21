@@ -2,7 +2,7 @@
 
 ## 핵심 개선 사항
 
-### 1. SIGCHLD 레이스 컨디션 해결 ✅
+### 1. SIGCHLD 레이스 컨디션 해결 
 **문제**: 시그널 핸들러에서 PID 배열 직접 수정 → 데이터 깨짐
 **해결**: 핸들러는 `child_died=1` flag만 설정, waitpid/배열 정리는 메인 루프에서
 
@@ -15,7 +15,7 @@ if (signo == SIGCHLD)
 handle_child_died(&state);  // 여기서 waitpid + 배열 정리
 ```
 
-### 2. MAX_WORKERS 제한 실제로 걸기 ✅
+### 2. MAX_WORKERS 제한 실제로 걸기 
 **문제**: 배열 꽉 차도 fork 계속 됨 → shutdown 시 kill 못함
 **해결**: fork 전에 체크해서 연결 거부
 
@@ -26,7 +26,7 @@ if (state->worker_count >= MAX_WORKERS) {
 }
 ```
 
-### 3. dup2(fd, 3)로 Worker FD 고정 ✅
+### 3. dup2(fd, 3)로 Worker FD 고정 
 **문제**: argv로 fd 넘기고 파싱/검증 코드 복잡
 **해결**: 무조건 FD=3 사용
 
@@ -40,7 +40,7 @@ int client_sock = 3;  // 항상 고정
 getpeername(3, ...)   // IP/port는 여기서
 ```
 
-### 4. 로그 성능 개선 ✅
+### 4. 로그 성능 개선 
 **문제**: 매번 fopen/fclose 반복 → 성능 저하
 **해결**: 파일 유지, write() 사용
 
@@ -56,7 +56,7 @@ log_message() {
 }
 ```
 
-### 5. 스레드 안전성 개선 ✅
+### 5. 스레드 안전성 개선 
 - `inet_ntoa()` → `inet_ntop()` (스레드 안전)
 
 ## 파일 구조

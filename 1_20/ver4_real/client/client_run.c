@@ -119,8 +119,7 @@ client_run(const char *ip, int port, int client_id, ClientState *state)
                 fprintf(stderr, "[클라이언트 #%d] write poll 에러\n", client_id);
                 goto cleanup;
             }
-            
-            if (write_ret == 0) 
+            else if (write_ret == 0) 
             {
                 fprintf(stderr, "[클라이언트 #%d] write poll 타임아웃\n", client_id);
                 goto cleanup;
@@ -131,8 +130,7 @@ client_run(const char *ip, int port, int client_id, ClientState *state)
                 fprintf(stderr, "[클라이언트 #%d] write poll 에러 이벤트\n", client_id);
                 goto cleanup;
             }
-            
-            if (write_pfd.revents & POLLOUT) 
+            else if (write_pfd.revents & POLLOUT) 
             {
                 ssize_t write_result = write(sock, msg + sent, msg_len - sent);
                 
@@ -175,8 +173,7 @@ client_run(const char *ip, int port, int client_id, ClientState *state)
             fprintf(stderr, "[클라이언트 #%d] read poll 에러\n", client_id);
             goto cleanup;
         }
-        
-        if (read_ret == 0) 
+        else if (read_ret == 0) 
         {
             fprintf(stderr, "[클라이언트 #%d] read poll 타임아웃\n", client_id);
             goto cleanup;
@@ -187,8 +184,7 @@ client_run(const char *ip, int port, int client_id, ClientState *state)
             fprintf(stderr, "[클라이언트 #%d] read poll 에러 이벤트\n", client_id);
             goto cleanup;
         }
-        
-        if (read_pfd.revents & POLLIN) 
+        else if (read_pfd.revents & POLLIN) 
         {
             ssize_t str_len = read(sock, recv_buf, BUF_SIZE - 1);
             

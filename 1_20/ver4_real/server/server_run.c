@@ -7,7 +7,7 @@
 #include <poll.h>
 #include <errno.h>
 #include <string.h>
-
+//자식에게도 SIGPIPE 무시
 void
 run_server(void)
 {

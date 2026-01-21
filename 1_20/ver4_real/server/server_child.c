@@ -45,7 +45,7 @@ child_process_main(int client_sock, int session_id, struct sockaddr_in client_ad
     char buf[BUF_SIZE];
     struct pollfd read_pfd = {.fd = session->sock, .events = POLLIN, .revents = 0};
     struct pollfd write_pfd = {.fd = session->sock, .events = POLLOUT, .revents = 0};
-    
+ 
     while (session->io_count < IO_TARGET && session->state == SESSION_ACTIVE && state->running) 
     {
         time_t current_time = time(NULL);
@@ -70,8 +70,7 @@ child_process_main(int client_sock, int session_id, struct sockaddr_in client_ad
             fprintf(stderr, "[자식 #%d] read poll() error: %s\n", session_id, strerror(errno));
             goto cleanup;
         }
-        
-        if (read_ret == 0) 
+        else if (read_ret == 0) 
         {
             fprintf(stderr, "[자식 #%d] read poll 타임아웃\n", session_id);
             goto cleanup;
@@ -82,25 +81,22 @@ child_process_main(int client_sock, int session_id, struct sockaddr_in client_ad
             log_message(LOG_ERROR, "read poll 에러 이벤트 발생: 0x%x", read_pfd.revents);
             goto cleanup;
         }
-        
-        if (read_pfd.revents & POLLIN) 
+        else if (read_pfd.revents & POLLIN) 
         {
             ssize_t str_len = read(session->sock, buf, BUF_SIZE - 1);
-            
+        
             if (str_len == 0) 
             {
                 printf("[자식 #%d] 클라이언트 정상 연결 종료 (EOF)\n", session_id);
                 goto cleanup;
             }
-            
-            if (str_len < 0) 
+            else if (str_len < 0) 
             {
                 if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)
                     continue;
                 fprintf(stderr, "[자식 #%d] read() error: %s\n", session_id, strerror(errno));
                 goto cleanup;
             }
-            
             session->last_activity = time(NULL);
             buf[str_len] = 0;
             
@@ -120,8 +116,7 @@ child_process_main(int client_sock, int session_id, struct sockaddr_in client_ad
                     fprintf(stderr, "[자식 #%d] write poll() error: %s\n", session_id, strerror(errno));
                     goto cleanup;
                 }
-                
-                if (write_ret == 0) 
+                else if (write_ret == 0) 
                 {
                     fprintf(stderr, "[자식 #%d] write poll 타임아웃\n", session_id);
                     goto cleanup;
@@ -132,8 +127,7 @@ child_process_main(int client_sock, int session_id, struct sockaddr_in client_ad
                     log_message(LOG_ERROR, "write poll 에러 이벤트 발생: 0x%x", write_pfd.revents);
                     goto cleanup;
                 }
-                
-                if (write_pfd.revents & POLLOUT) 
+                else if (write_pfd.revents & POLLOUT) 
                 {
                     ssize_t write_result = write(session->sock, buf + sent, str_len - sent);
                     
@@ -141,7 +135,7 @@ child_process_main(int client_sock, int session_id, struct sockaddr_in client_ad
                     {
                         if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)
                             continue;
-                        if (errno == EPIPE) 
+                        else if (errno == EPIPE) 
                         {
                             fprintf(stderr, "[자식 #%d] write() EPIPE: 클라이언트 연결 끊김\n", session_id);
                             goto cleanup;
