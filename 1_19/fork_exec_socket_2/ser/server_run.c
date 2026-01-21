@@ -365,8 +365,8 @@ run_server(void)
     
     // 부모용 Stack trace 설정
     setup_parent_signal_handlers();
-    //sleep(1);
-    //test_crash_with_stack();
+    // sleep(1);
+    // test_crash_with_stack();
     log_init();
     
     // 서버 소켓 생성
@@ -394,7 +394,7 @@ run_server(void)
         poll_result = poll(fds, 1, 1000);
         
         if (poll_result == -1)
-        {   //EINTR - 시그널 신호 감지 - 자식 프로세스 종료되어 SIGCHLD 시그널 날아올 경우 sigchld_handler에서 처리 후 다시 연결 대기
+        {   //EINTR - 시그널 신호 감지 
             //SIGIN로 부모가 종료될 경우 shutdown_handler에서 처리 후 server_running=0; poll문으로 돌아와 continue 후 while문 벗어남
             //데이터 없으니 나중에 다시 시도
             if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) 

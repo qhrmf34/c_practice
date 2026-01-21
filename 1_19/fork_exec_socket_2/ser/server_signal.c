@@ -59,7 +59,7 @@ setup_parent_signal_handlers(void)
     struct sigaction sa;
     sa.sa_handler = signal_crash_handler;
     sigemptyset(&sa.sa_mask);
-    sa.sa_flags = SA_RESETHAND;  // 한 번 실행 후 기본 동작으로 -> 왜 죽었는지 OS와 부모에게 알리기 위해
+    sa.sa_flags = SA_RESETHAND;  
     
     sigaction(SIGSEGV, &sa, NULL);
     sigaction(SIGABRT, &sa, NULL);
@@ -76,7 +76,7 @@ setup_child_signal_handlers(void)
     struct sigaction sa;
     sa.sa_handler = signal_crash_handler;
     sigemptyset(&sa.sa_mask);
-    sa.sa_flags = SA_RESETHAND;
+    sa.sa_flags = SA_RESETHAND; // 한 번 실행 후 기본 동작으로 -> 왜 죽었는지 OS와 부모에게 알리기 위해
     
     sigaction(SIGSEGV, &sa, NULL);
     sigaction(SIGABRT, &sa, NULL);
