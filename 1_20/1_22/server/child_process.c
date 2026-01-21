@@ -23,12 +23,6 @@ child_process_main(int client_sock, int session_id, struct sockaddr_in client_ad
     monitor.total_sessions = 1;
     
     SessionDescriptor *session = malloc(sizeof(SessionDescriptor));              /* 세션 상태 동적 할당 */
-    if (session == NULL)                                                         /* malloc 실패: 메모리 부족 (극히 드물지만 가능) */
-    {
-        fprintf(stderr, "[자식 #%d] malloc() 실패: %s\n", session_id, strerror(errno));
-        close(client_sock);
-        return;
-    }
     
     memset(session, 0, sizeof(SessionDescriptor));
     session->sock = client_sock;
