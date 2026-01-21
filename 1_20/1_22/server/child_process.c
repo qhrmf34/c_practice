@@ -94,12 +94,12 @@ child_process_main(int client_sock, int session_id, struct sockaddr_in client_ad
             {
                 if (errno == EINTR)                                                      /* 시그널로 인한 중단 (재시도 가능) */
                 {
-                    log_message(state->log_ctx, LOG_DEBUG, "accept() interrupted, 재시도");
+                    log_message(state->log_ctx, LOG_DEBUG, "read() 시그널 중단, 재시도");
                     continue;
                 }
                 else if (errno == EAGAIN || errno == EWOULDBLOCK)                        /* 일시적으로 연결 불가 (재시도 가능) */
                 {
-                    log_message(state->log_ctx, LOG_DEBUG, "accept() 일시적으로 불가, 재시도");
+                    log_message(state->log_ctx, LOG_DEBUG, "read() 일시적으로 불가, 재시도");
                    continue;
                 }
                 fprintf(stderr, "[자식 #%d] read() error: %s\n", session_id, strerror(errno));  /* 기타: 연결 끊김, 소켓 오류 */
@@ -150,12 +150,12 @@ child_process_main(int client_sock, int session_id, struct sockaddr_in client_ad
                     {
                         if (errno == EINTR)                                                      /* 시그널로 인한 중단 (재시도 가능) */
                         {
-                            log_message(state->log_ctx, LOG_DEBUG, "accept() interrupted, 재시도");
+                            log_message(state->log_ctx, LOG_DEBUG, "write() interrupted, 재시도");
                             continue;
                         }
                         else if (errno == EAGAIN || errno == EWOULDBLOCK)                        /* 일시적으로 연결 불가 (재시도 가능) */
                         {
-                            log_message(state->log_ctx, LOG_DEBUG, "accept() 일시적으로 불가, 재시도");
+                            log_message(state->log_ctx, LOG_DEBUG, "write() 일시적으로 불가, 재시도");
                            continue;
                         }
                         else if (errno == EPIPE)                                 /* 클라이언트가 연결 끊음 (SIGPIPE 무시됨) */
