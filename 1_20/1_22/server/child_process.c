@@ -181,6 +181,11 @@ child_process_main(int client_sock, int session_id, struct sockaddr_in client_ad
             session->last_activity = time(NULL);
             printf("[자식 #%d] I/O 완료: %d/%d\n", session_id, session->io_count, IO_TARGET);
         }
+        else 
+        {
+            log_message(state->log_ctx, LOG_DEBUG,"read poll: 예상 못한 revents=0x%x", read_pfd.revents);
+            goto cleanup;  
+        }
     }
 
 cleanup:
