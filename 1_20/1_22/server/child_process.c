@@ -23,7 +23,13 @@ child_process_main(int client_sock, int session_id, struct sockaddr_in client_ad
     monitor.total_sessions = 1;
     
     SessionDescriptor *session = malloc(sizeof(SessionDescriptor));              /* 세션 상태 동적 할당 */
-    
+    if (!session) 
+    { 
+        perror("malloc"); 
+        close(client_sock); 
+        return; 
+    }
+
     memset(session, 0, sizeof(SessionDescriptor));
     session->sock = client_sock;
     session->addr = client_addr;
@@ -78,6 +84,7 @@ child_process_main(int client_sock, int session_id, struct sockaddr_in client_ad
                 log_message(state->log_ctx, LOG_WARNING, "read poll: POLLHUP (상대가 끊음/half-close 가능)");
             if (read_pfd.revents & POLLNVAL)
                 log_message(state->log_ctx, LOG_ERROR, "read poll: POLLNVAL (fd가 유효하지 않음/닫혔을 가능성)");
+                
             log_message(state->log_ctx, LOG_ERROR, "read poll 에러 이벤트 발생: 0x%x", read_pfd.revents);  /* POLLERR: 소켓 오류, POLLHUP: 연결 끊김 */
             goto cleanup;
         }
@@ -139,7 +146,8 @@ child_process_main(int client_sock, int session_id, struct sockaddr_in client_ad
                         log_message(state->log_ctx, LOG_WARNING, "write poll: POLLHUP (상대가 끊음/half-close 가능)");
                     if (write_pfd.revents & POLLNVAL)
                         log_message(state->log_ctx, LOG_ERROR, "write poll: POLLNVAL (fd가 유효하지 않음/닫혔을 가능성)");
-                            log_message(state->log_ctx, LOG_ERROR, "write poll 에러 이벤트 발생: 0x%x", write_pfd.revents);
+
+                    log_message(state->log_ctx, LOG_ERROR, "write poll 에러 이벤트 발생: 0x%x", write_pfd.revents);
                     goto cleanup;
                 }
                 else if (write_pfd.revents & POLLOUT)                            /* 쓰기 가능 */
