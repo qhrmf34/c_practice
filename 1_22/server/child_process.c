@@ -1,35 +1,23 @@
-#define _POSIX_C_SOURCE 200809L
 #include "server_function.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
-#include <errno.h>
-#include <time.h>
-#include <poll.h>
 
-void
+void 
 child_process_main(int client_sock, int session_id, struct sockaddr_in client_addr, ServerState *state)
 {
     char ip_str[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, &client_addr.sin_addr, ip_str, sizeof(ip_str));
-    
     printf("\n[자식 프로세스 #%d (PID:%d)] 시작\n", session_id, getpid());
     printf("[자식] 클라이언트: %s:%d\n", ip_str, ntohs(client_addr.sin_port));
-    
     ResourceMonitor monitor = {0};
     monitor.start_time = time(NULL);
     monitor.active_sessions = 1;
     monitor.total_sessions = 1;
-    
-    SessionDescriptor *session = malloc(sizeof(SessionDescriptor));              /* 세션 상태 동적 할당 */
+    SessionDescriptor *session = malloc(sizeof(SessionDescriptor));
     if (!session) 
-    { 
-        perror("malloc"); 
-        close(client_sock); 
-        return; 
+    {
+        perror("child_process_main() : malloc");
+        close(client_sock);
+        return;
     }
-
     memset(session, 0, sizeof(SessionDescriptor));
     session->sock = client_sock;
     session->addr = client_addr;
@@ -38,175 +26,102 @@ child_process_main(int client_sock, int session_id, struct sockaddr_in client_ad
     session->start_time = time(NULL);
     session->last_activity = time(NULL);
     session->io_count = 0;
-    
     monitor_resources(&monitor);
     print_resource_status(&monitor);
-    
     char buf[BUF_SIZE];
     struct pollfd read_pfd = {.fd = session->sock, .events = POLLIN, .revents = 0};
-    struct pollfd write_pfd = {.fd = session->sock, .events = POLLOUT, .revents = 0};
- 
     while (session->io_count < IO_TARGET && session->state == SESSION_ACTIVE && state->running) 
     {
         time_t current_time = time(NULL);
         time_t idle_duration = current_time - session->last_activity;
-        
-        if (idle_duration >= SESSION_IDLE_TIMEOUT)                               /* 60초간 무활동 시 타임아웃 */
+        if (idle_duration >= SESSION_IDLE_TIMEOUT) 
         {
-            fprintf(stderr, "[자식 #%d] idle 타임아웃 (%ld초 무활동)\n", session_id, idle_duration);
-            goto cleanup;
+            fprintf(stderr, "child_process_main() : [자식 #%d] idle 타임아웃 (%ld초 무활동)\n", session_id, idle_duration);
+            break;
         }
-        
         read_pfd.revents = 0;
-        int read_ret = poll(&read_pfd, 1, POLL_TIMEOUT);                         /* 1초 타임아웃으로 데이터 대기 */
-        
-        if (read_ret == -1)                                                      /* poll 실패 */
+        int read_ret = poll(&read_pfd, 1, POLL_TIMEOUT);
+        if (read_ret == -1) 
         {
-            if (errno == EINTR)                                                  /* 시그널로 인한 중단 (SIGTERM 등) */
+            if (errno == EINTR) 
             {
-                printf("[자식 #%d] read poll interrupted, 재시도\n", session_id);
+                printf("child_process_main() : [자식 #%d] read poll interrupted, 재시도\n", session_id);
                 continue;
             }
-            fprintf(stderr, "[자식 #%d] read poll() error: %s\n", session_id, strerror(errno));  /* 기타 에러: 잘못된 fd, 메모리 */
-            goto cleanup;
-        }
-        else if (read_ret == 0)                                                  /* 타임아웃 (데이터 없음) */
+            fprintf(stderr, "child_process_main() : [자식 #%d] poll() error: %s\n", session_id, strerror(errno));
+            break;
+        } 
+        else if (read_ret == 0) 
         {
-            fprintf(stderr, "[자식 #%d] read poll 타임아웃\n", session_id);
-            goto cleanup;
+            fprintf(stderr, "child_process_main() : [자식 #%d] poll 타임아웃\n", session_id);
+            break;
         }
-        
-        if (read_pfd.revents & (POLLERR | POLLHUP | POLLNVAL))                   /* 소켓 에러 이벤트 */
+        if (read_pfd.revents & (POLLERR | POLLHUP | POLLNVAL)) 
         {
-            if (read_pfd.revents & POLLERR)
-                log_message(state->log_ctx, LOG_ERROR, "read poll: POLLERR (소켓 내부 오류)");
-            if (read_pfd.revents & POLLHUP)
-                log_message(state->log_ctx, LOG_WARNING, "read poll: POLLHUP (상대가 끊음/half-close 가능)");
-            if (read_pfd.revents & POLLNVAL)
-                log_message(state->log_ctx, LOG_ERROR, "read poll: POLLNVAL (fd가 유효하지 않음/닫혔을 가능성)");
-                
-            log_message(state->log_ctx, LOG_ERROR, "read poll 에러 이벤트 발생: 0x%x", read_pfd.revents);  /* POLLERR: 소켓 오류, POLLHUP: 연결 끊김 */
-            goto cleanup;
-        }
-        else if (read_pfd.revents & POLLIN)                                      /* 읽을 데이터 있음 */
+            fprintf(stderr, "child_process_main() : [자식 #%d] poll 에러 이벤트: 0x%x\n", session_id, read_pfd.revents);
+            break;
+        } 
+        else if (read_pfd.revents & POLLIN) 
         {
-            ssize_t str_len = read(session->sock, buf, BUF_SIZE - 1);           /* 데이터 읽기 */
-        
-            if (str_len == 0)                                                    /* EOF: 클라이언트가 연결 정상 종료 */
+            ssize_t str_len = read(session->sock, buf, BUF_SIZE - 1);
+            if (str_len == 0) 
             {
-                printf("[자식 #%d] 클라이언트 정상 연결 종료 (EOF)\n", session_id);
-                goto cleanup;
-            }
-            else if (str_len < 0)                                                /* read 에러 */
+                printf("child_process_main() : [자식 #%d] 클라이언트 정상 연결 종료 (EOF)\n", session_id);
+                break;
+            } 
+            else if (str_len < 0) 
             {
-                if (errno == EINTR)                                                      /* 시그널로 인한 중단 (재시도 가능) */
+                if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) 
                 {
-                    log_message(state->log_ctx, LOG_DEBUG, "read() 시그널 중단, 재시도");
+                    printf("child_process_main() : [자식 #%d] read() 재시도 가능 에러\n", session_id);
                     continue;
                 }
-                else if (errno == EAGAIN || errno == EWOULDBLOCK)                        /* 일시적으로 연결 불가 (재시도 가능) */
-                {
-                    log_message(state->log_ctx, LOG_DEBUG, "read() 일시적으로 불가, 재시도");
-                   continue;
-                }
-                fprintf(stderr, "[자식 #%d] read() error: %s\n", session_id, strerror(errno));  /* 기타: 연결 끊김, 소켓 오류 */
-                goto cleanup;
+                fprintf(stderr, "child_process_main() : [자식 #%d] read() error: %s\n", session_id, strerror(errno));
+                break;
             }
-            session->last_activity = time(NULL);                                 /* 활동 시간 업데이트 */
-            buf[str_len] = 0;                                                    /* NULL 종료 문자 추가 */
-            
-            /* 에코: 읽은 데이터를 그대로 전송 */
+            session->last_activity = time(NULL);
+            buf[str_len] = 0;
             ssize_t sent = 0;
             while (sent < str_len) 
             {
-                write_pfd.revents = 0;
-                int write_ret = poll(&write_pfd, 1, POLL_TIMEOUT);               /* 쓰기 가능 대기 */
-                
-                if (write_ret == -1)                                             /* poll 실패 */
+                ssize_t write_result = write(session->sock, buf + sent, str_len - sent);
+                if (write_result == -1) 
                 {
-                    if (errno == EINTR)                                          /* 시그널로 인한 중단 */
-                    {
-                        printf("[자식 #%d] write poll interrupted, 재시도\n", session_id);
+                    if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) 
                         continue;
-                    }
-                    fprintf(stderr, "[자식 #%d] write poll() error: %s\n", session_id, strerror(errno));
-                    goto cleanup;
-                }
-                else if (write_ret == 0)                                         /* 타임아웃 */
-                {
-                    fprintf(stderr, "[자식 #%d] write poll 타임아웃\n", session_id);
-                    goto cleanup;
-                }
-                
-                if (write_pfd.revents & (POLLERR | POLLHUP | POLLNVAL))          /* 소켓 에러 이벤트 */
-                {
-                    if (write_pfd.revents & POLLERR)
-                        log_message(state->log_ctx, LOG_ERROR, "write poll: POLLERR (소켓 내부 오류)");
-                    if (write_pfd.revents & POLLHUP)
-                        log_message(state->log_ctx, LOG_WARNING, "write poll: POLLHUP (상대가 끊음/half-close 가능)");
-                    if (write_pfd.revents & POLLNVAL)
-                        log_message(state->log_ctx, LOG_ERROR, "write poll: POLLNVAL (fd가 유효하지 않음/닫혔을 가능성)");
-
-                    log_message(state->log_ctx, LOG_ERROR, "write poll 에러 이벤트 발생: 0x%x", write_pfd.revents);
-                    goto cleanup;
-                }
-                else if (write_pfd.revents & POLLOUT)                            /* 쓰기 가능 */
-                {
-                    ssize_t write_result = write(session->sock, buf + sent, str_len - sent);
-                    
-                    if (write_result == -1)                                      /* write 에러 */
+                    else if (errno == EPIPE) 
                     {
-                        if (errno == EINTR)                                                      /* 시그널로 인한 중단 (재시도 가능) */
-                        {
-                            log_message(state->log_ctx, LOG_DEBUG, "write() interrupted, 재시도");
-                            continue;
-                        }
-                        else if (errno == EAGAIN || errno == EWOULDBLOCK)                        /* 일시적으로 연결 불가 (재시도 가능) */
-                        {
-                            log_message(state->log_ctx, LOG_DEBUG, "write() 일시적으로 불가, 재시도");
-                           continue;
-                        }
-                        else if (errno == EPIPE)                                 /* 클라이언트가 연결 끊음 (SIGPIPE 무시됨) */
-                        {
-                            fprintf(stderr, "[자식 #%d] write() EPIPE: 클라이언트 연결 끊김\n", session_id);
-                            goto cleanup;
-                        }
-                        fprintf(stderr, "[자식 #%d] write() error: %s\n", session_id, strerror(errno));
-                        goto cleanup;
+                        fprintf(stderr, "child_process_main() : [자식 #%d] write() EPIPE: 클라이언트 연결 끊김\n", session_id);
+                        break;
                     }
-                    sent += write_result;                                        /* 전송한 바이트 수 누적 */
+                    fprintf(stderr, "child_process_main() : [자식 #%d] write() error: %s\n", session_id, strerror(errno));
+                    break;
                 }
+                sent += write_result;
             }
-            session->io_count++;                                                 /* I/O 완료 카운트 증가 */
+            if (sent < str_len)
+                break;
+            session->io_count++;
             session->last_activity = time(NULL);
             printf("[자식 #%d] I/O 완료: %d/%d\n", session_id, session->io_count, IO_TARGET);
-        }
+        } 
         else 
         {
-            log_message(state->log_ctx, LOG_DEBUG,"read poll: 예상 못한 revents=0x%x", read_pfd.revents);
-            goto cleanup;  
+            fprintf(stderr, "child_process_main() : [자식 #%d] 예상 못한 revents=0x%x\n", session_id, read_pfd.revents);
+            break;
         }
     }
-
-cleanup:
     session->state = SESSION_CLOSED;
     time_t end_time = time(NULL);
-    
-    if (!state->running)                                                         /* SIGTERM으로 종료된 경우 */
-        printf("[자식 #%d (PID:%d)] SIGTERM으로 인한 graceful shutdown - %d I/O 완료, %ld초 소요\n", 
-               session_id, getpid(), session->io_count, end_time - session->start_time);
+    if (!state->running)
+        printf("[자식 #%d (PID:%d)] SIGTERM으로 인한 graceful shutdown - %d I/O 완료, %ld초 소요\n", session_id, getpid(), session->io_count, end_time - session->start_time);
     else
-        printf("[자식 #%d (PID:%d)] 처리 완료 - %d I/O 완료, %ld초 소요\n", 
-               session_id, getpid(), session->io_count, end_time - session->start_time);
-    
+        printf("[자식 #%d (PID:%d)] 처리 완료 - %d I/O 완료, %ld초 소요\n", session_id, getpid(), session->io_count, end_time - session->start_time);
     monitor.active_sessions--;
-    
-    if (close(client_sock) == -1)                                                /* 클라이언트 소켓 닫기 */
-        fprintf(stderr, "[자식 #%d] close(client_sock) 실패: %s\n", session_id, strerror(errno));  /* close 실패: EIO 등 (드묾) */
-    
+    if (close(client_sock) == -1)
+        fprintf(stderr, "child_process_main() : [자식 #%d] close(client_sock) 실패: %s\n", session_id, strerror(errno));
     monitor_resources(&monitor);
     print_resource_status(&monitor);
-    
-    free(session);                                                               /* 동적 할당 메모리 해제 */
+    free(session);
     printf("[자식 #%d (PID:%d)] 정상 종료\n\n", session_id, getpid());
 }

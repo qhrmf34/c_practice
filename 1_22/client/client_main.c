@@ -1,8 +1,6 @@
 #include "client_function.h"
-#include <stdio.h>
-
-int
+int 
 main(int argc, char *argv[])
 {
-    return client_connect(argc, argv);                                           /* 클라이언트 시작 */
+    return client_connect(argc, argv);
 }
