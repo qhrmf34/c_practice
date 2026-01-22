@@ -7,14 +7,14 @@ run_server(void)
 {
     int serv_sock, clnt_sock, session_id = 0;
     struct sockaddr_in serv_addr, clnt_addr;
-    int option = 1;
-    ServerState state = {0};
-    state.running = 1;
-    state.start_time = time(NULL);
-    state.parent_pid = getpid();
-    state.log_fd = -1;
-    setup_signal_handlers(&state);
-    log_init(&state);
+    int option = 1; //포트 재사용 
+    ServerState state = {0}; //서버상태 초기화
+    state.running = 1; //서버 종료 플래그
+    state.start_time = time(NULL); //시작 시간
+    state.parent_pid = getpid(); //crash_handler에서 부모 확인용
+    state.log_fd = -1; //로그 fds
+    setup_signal_handlers(&state); //시그널 핸들러 등록
+    log_init(&state); 
     log_message(&state, LOG_INFO, "=== Multi-Process Echo Server 시작 ===");
     log_message(&state, LOG_INFO, "Port: %d", PORT);
     serv_sock = socket(PF_INET, SOCK_STREAM, 0);
