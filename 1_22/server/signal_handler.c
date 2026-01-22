@@ -5,13 +5,13 @@ static ServerState *g_state = NULL;
 static void 
 signal_handler(int signo)
 {
-    int saved_errno = errno;
-    if (signo == SIGCHLD) 
+    int saved_errno = errno;                        // 기존 에러 번호 보존
+    if (signo == SIGCHLD)                           // 자식 종료 시 부모에게 알림 플래그 설정
     {
         if (g_state)
             g_state->child_died = 1;
     } 
-    else if (signo == SIGINT || signo == SIGTERM) 
+    else if (signo == SIGINT || signo == SIGTERM)   //부모에게 SIGINT신호 들어올경우 종료플래그로 while문 벗어나며 shutdown_handler실행(자식 종료) 
     {
         if (g_state)
             g_state->running = 0;
@@ -44,8 +44,8 @@ void
 setup_signal_handlers(ServerState *state)
 {
     g_state = state;
-    struct sigaction sa_pipe;
-    sa_pipe.sa_handler = SIG_IGN;
+    struct sigaction sa_pipe;       // 파이프 에러(SIGPIPE) 무시 설정
+    sa_pipe.sa_handler = SIG_IGN;   
     sigemptyset(&sa_pipe.sa_mask);
     sa_pipe.sa_flags = 0;
     if (sigaction(SIGPIPE, &sa_pipe, NULL) == -1)
