@@ -81,7 +81,7 @@ client_run(const char *ip, int port, int client_id, ClientState *state)
         else if (read_ret == 0) 
         {
             fprintf(stderr, "client_run() : [클라이언트 #%d] poll 타임아웃\n", client_id);
-            break;
+            continue;
         }
         if (read_pfd.revents & (POLLERR | POLLHUP | POLLNVAL)) 
         {

@@ -17,8 +17,8 @@ log_level_string(LogLevel level)
 void 
 log_message(ServerState *state, LogLevel level, const char* format, ...)
 {
-    va_list args;               // 가변 인자 처리를 위한 리스트
-    time_t now;                 // 현재 시간 획득
+    va_list args;                                                       // 가변 인자 처리를 위한 리스트
+    time_t now;                                                         // 현재 시간 획득
     char timestr[64];
     char buffer[2048];
     char log_line[2200];
@@ -33,9 +33,9 @@ log_message(ServerState *state, LogLevel level, const char* format, ...)
         len = 0;
     else if (len >= (int)sizeof(log_line))
         len = sizeof(log_line) - 1;
-    write(STDOUT_FILENO, log_line, len);        // 표준 출력(콘솔)에 로그 출력
-    if (state && state->log_fd >= 0)            // 로그 파일이 열려 있다면
-        write(state->log_fd, log_line, len);    // 파일에도 로그 기록
+    write(STDOUT_FILENO, log_line, len);                                // 표준 출력(콘솔)에 로그 출력
+    if (state && state->log_fd >= 0)                                    // 로그 파일이 열려 있다면
+        write(state->log_fd, log_line, len);                            // 파일에도 로그 기록
 }
 void 
 log_init(ServerState *state)
